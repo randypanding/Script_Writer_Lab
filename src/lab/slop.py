@@ -54,15 +54,22 @@ def build_lexicon(
     drama_texts: list[str],
     novel_texts: list[str],
     top: int = 150,
+    quotas: dict[str, int] | None = None,
 ) -> list[dict]:
-    """词典条目:phrase / pmi / source(our_vs_drama | drama_vs_novel | seed)。"""
+    """词典条目:phrase / pmi / source(our_vs_drama | drama_vs_novel | seed)。
+
+    噪声防线:专名(人名/地名)是最大噪声源——单部剧本专属、提升度虚高。
+    规则:corpus 侧条目必须跨 ≥3 部出现(df 约束),专名天然被滤除;
+    our 侧(样本尚小)必须 df≥2 且语料中存在;纯新造模型腔交给 seed 先验。
+    配额:三来源按 quotas 分配,防单一信号挤占词典。"""
     entries: dict[str, dict] = {}
+    drama_df = _doc_freqs(drama_texts)
 
     def add(phrase: str, pmi: float, source: str, extra: dict | None = None):
         e = entries.setdefault(phrase, {"phrase": phrase, "pmi": round(pmi, 4), "source": source})
         e.update(extra or {})
 
-    # 信号 1:我们生成物 vs 语料剧本组
+    # 信号 1:我们生成物 vs 语料剧本组(样本小,只做补充信号)
     our_c = ngram_freqs(our_texts)
     our_total = sum(our_c.values())
     drama_c = ngram_freqs(drama_texts)
@@ -72,12 +79,14 @@ def build_lexicon(
         for phrase, cnt in our_c.items():
             if cnt < 2 or len(phrase) < MIN_LEN:
                 continue
+            if drama_df.get(phrase, 0) < 2 and len(phrase) < 4:
+                continue  # 短(≤3字)且语料不跨部 → 专名;长短语允许语料缺位(模型新腔)
             lift = _pmi(r_our[phrase], r_drama.get(phrase, 0.0))
             if lift > 0.5:
                 add(phrase, lift, "our_vs_drama",
-                    {"freq_our": cnt, "freq_corpus": drama_c.get(phrase, 0)})
+                    {"freq_our": cnt, "freq_corpus": drama_c.get(phrase, 0), "df_drama": drama_df.get(phrase, 0)})
 
-    # 信号 2:语料内对照组(剧本 vs 小说)——模板化短剧腔
+    # 信号 2:语料内对照组(剧本 vs 小说)——模板化短剧腔(主信号)
     novel_c = ngram_freqs(novel_texts)
     novel_total = sum(novel_c.values())
     if drama_total and novel_total:
@@ -85,18 +94,34 @@ def build_lexicon(
         for phrase, cnt in drama_c.items():
             if cnt < max(5, drama_total // 2_000_000):
                 continue
+            if drama_df.get(phrase, 0) < 3:
+                continue  # 单部专属 → 大概率专名
             lift = _pmi(r_drama2[phrase], r_novel.get(phrase, 0.0))
             if lift > 1.0:
                 add(phrase, lift, "drama_vs_novel",
-                    {"freq_drama": cnt, "freq_novel": novel_c.get(phrase, 0)})
+                    {"freq_drama": cnt, "freq_novel": novel_c.get(phrase, 0), "df_drama": drama_df[phrase]})
 
     # 信号 3:内置种子(D05 同源)
     for s in SLOP_SEEDS:
         entries.setdefault(s, {"phrase": s, "pmi": None, "source": "seed"})
 
-    ranked = sorted(entries.values(),
-                    key=lambda e: -(e["pmi"] if e["pmi"] is not None else 99))[:top]
-    return ranked
+    quotas = quotas or {"our_vs_drama": top // 5, "drama_vs_novel": top - top // 5 - len(SLOP_SEEDS),
+                        "seed": len(SLOP_SEEDS)}
+    out: list[dict] = []
+    for source, quota in quotas.items():
+        pool = [e for e in entries.values() if e["source"] == source]
+        pool.sort(key=lambda e: -(e["pmi"] if e["pmi"] is not None else 99))
+        out.extend(pool[:quota])
+    return out
+
+
+def _doc_freqs(texts: list[str]) -> dict[str, int]:
+    """短语 → 出现于多少部文本(专名过滤的依据)。"""
+    df: dict[str, int] = {}
+    for t in texts:
+        for m in set(CJK.findall(t)):
+            df[m] = df.get(m, 0) + 1
+    return df
 
 def write_outputs(entries: list[dict], mined_dir: str | Path, n_drama: int = 0, n_novel: int = 0) -> None:
     mined = Path(mined_dir)
@@ -106,8 +131,8 @@ def write_outputs(entries: list[dict], mined_dir: str | Path, n_drama: int = 0, 
         "n_entries": len(entries),
         "entries": entries,
         "note": "AI 味词典(聚合产物,无 >50 字符原文);pmi=log((f_our+α)/(f_ref+α));"
-                "source: our_vs_drama=生成物模型腔 / drama_vs_novel=模板化短剧腔 / seed=内置先验;"
-                "D05_inject_slop 注入时按 per_1k_chars 带内取样合并本词典。",
+                "source: our_vs_drama=生成物模型腔(小样本补充信号) / drama_vs_novel=模板化短剧腔(主信号) /"
+                " seed=内置先验;df 约束滤专名;D05_inject_slop 注入时按 per_1k_chars 带内取样合并本词典。",
     }
     (mined / "slop_lexicon.yaml").write_text(
         yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")

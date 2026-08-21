@@ -6,8 +6,11 @@ from lab.slop import build_lexicon, detect, write_outputs
 
 
 def test_lexicon_meets_quota_with_pmi():
+    # 语料侧每个短语跨 ≥2 部出现(df 约束),否则按专名滤除
     our = ["他的眼中闪过一丝不易察觉的复杂情绪,她说。", "命运的齿轮开始转动,他握紧了拳头。"] * 10
-    drama = ["阿婆把茶叶摔在柜台上说这茶谁敢喝。", "小满说我只做头采茶叶。"] * 20
+    drama = ["阿婆把茶叶摔在柜台上说这茶谁敢喝。小满说真的。",
+             "小满说我只做头采茶叶。阿婆你先尝一口。",
+             "阿婆愣住了,小满把茶叶递过去。"] * 10
     novel = ["山间的雾气漫过竹林,他想起多年前的事。", "船行千里,岸上的灯火渐次熄灭。"] * 20
     entries = build_lexicon(our, drama, novel, top=150)
     assert len(entries) >= 12  # 种子 + 差异信号
@@ -15,8 +18,11 @@ def test_lexicon_meets_quota_with_pmi():
     assert len(seeds) >= 10  # D05 内置种子全量在册
     with_pmi = [e for e in entries if e["pmi"] is not None]
     assert with_pmi, "差异信号必须产出带 PMI 的条目"
-    # our_vs_drama:我们的模型腔短语 lift>0
-    assert any(e["source"] == "our_vs_drama" and e["pmi"] > 0 for e in entries)
+    # 专名防线:≤3 字专名不收(小满在语料不跨部出现 → 不应作为 our_vs_drama 条目)
+    assert all(not (e["source"] == "our_vs_drama" and len(e["phrase"]) < 4) for e in entries)
+    # 配额:种子守恒 + our 信号在场
+    sources = {e["source"] for e in entries}
+    assert sources >= {"seed", "our_vs_drama"}
 
 
 def test_lexicon_entries_short_and_clean():

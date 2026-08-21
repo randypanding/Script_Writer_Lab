@@ -1,0 +1,7 @@
+metric_id: slop_density
+what: 每千字命中 AI 味词典的次数(生成物的'模型腔'密度)
+detector: lab.slop.detect(text) -> 每 1000 非空白字符的词典命中数;词典=mined/slop_lexicon.yaml
+cost: 零成本(纯字符串匹配,无模型调用)
+anti_gaming: 词典由语料+生成物差异驱动,优化器无法靠背词典过检(语料锚随语料更新);词典文件本身受泄漏守卫约束,不得含语料原文
+delivery_pitch: '''机器腔密度''——客户可感知的''AI 味''代名词,用于解释为什么这稿更像人写的'
+baseline: null
