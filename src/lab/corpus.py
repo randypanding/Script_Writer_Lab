@@ -58,11 +58,20 @@ def _to_base32(val: int, width: int) -> str:
 
 
 def simhash64(text: str) -> str:
-    """64 位 simhash(字符 3-gram 特征,md5 前 8 字节),16 位十六进制。同文同值。"""
+    """64 位 simhash(字符 3-gram 特征,md5 前 8 字节),16 位十六进制。同文同值。
+
+    性能口径:gram 数上限约 8 千,超出按确定性等距步长抽样(全量对长剧本为
+    数十万次哈希×64 位累加,不可用;抽样不破坏"同文同值",近重判定精度略降)。
+    <50 字符的短文本 3-gram 过少,近重判定基本失效,适用下限约为一段完整对白。"""
     v = [0] * 64
-    normalized = "".join(text.split())  # 空白不参与
-    for i in range(max(len(normalized) - 2, 1)):
-        gram = normalized[i : i + 3] if len(normalized) >= 3 else normalized
+    normalized = "".join(text.split())
+    n = len(normalized)
+    if n < 3:
+        grams = [normalized]
+    else:
+        stride = max(1, (n - 2) // 8192)
+        grams = [normalized[i : i + 3] for i in range(0, n - 2, stride)]
+    for gram in grams:
         h = int.from_bytes(md5(gram.encode("utf-8")).digest()[:8], "big")
         for b in range(64):
             v[b] += 1 if (h >> b) & 1 else -1
@@ -87,9 +96,11 @@ def _load_meta(path: Path) -> dict[str, str]:
 
 
 def parse_script(path: str | Path) -> ScriptCard:
-    """接受路径(str|Path,存在则读)或直接文本(不存在该路径则按文本解析)。"""
+    """接受路径(str|Path,是文件则读)或直接文本(不是文件则按文本解析)。
+
+    注意双重语义:拼错的路径不会报错,会被当成正文解析成一张卡(spec 规定)。"""
     p = Path(path)
-    if p.exists():
+    if p.is_file():
         return ScriptCard(text=p.read_text(encoding="utf-8", errors="ignore"),
                           source_file=p.name, meta=_load_meta(p))
     return ScriptCard(text=str(path), source_file="", meta={})
@@ -108,15 +119,11 @@ def _is_dialogue(line: str) -> tuple[bool, str]:
     return False, ""
 
 
+_SENT_RE = re.compile(r"(?<=[。!?…?!])")
+
+
 def _sentences(text: str) -> list[str]:
-    parts, buf = [], []
-    for ch in text:
-        buf.append(ch)
-        if ch in SENT_SPLIT:
-            parts.append("".join(buf))
-            buf = []
-    if buf:
-        parts.append("".join(buf))
+    parts = _SENT_RE.split(text)
     return [s for s in (p.strip() for p in parts) if s]
 
 
@@ -170,10 +177,12 @@ def stats_card(card: ScriptCard) -> dict[str, Any]:
 
 
 def _ep_char_counts(lines: list[str]) -> list[int]:
-    """分集字数(非空白字符;小说=分章)。无任何集/章标题 → 全文记 1 个单位。"""
-    bounds = [i for i, ln in enumerate(lines) if EP_TITLE.match(ln)] + [len(lines)]
-    if len(bounds) == 1:
+    """分集字数(非空白字符;小说=分章)。首个集/章标题之前的前导正文并入第一
+    个单位(口径:spec 未定义,本实现选择并入,见 PR 偏差记录)。无标题 → 全文 1 单位。"""
+    starts = [i for i, ln in enumerate(lines) if EP_TITLE.match(ln)]
+    if not starts:
         return [sum(len("".join(ln.split())) for ln in lines)] if lines else []
+    bounds = ([0] if starts[0] > 0 else []) + starts + [len(lines)]
     return [sum(len("".join(ln.split())) for ln in lines[a:b])
             for a, b in itertools.pairwise(bounds)]
 
@@ -215,11 +224,16 @@ def bands(store_dir: str | Path, mined_dir: str | Path) -> dict[str, Any]:
     store, mined = Path(store_dir), Path(mined_dir)
     mined.mkdir(parents=True, exist_ok=True)
     cards = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(store.glob("card_*.json"))]
+    if not cards:
+        raise ValueError(f"store 为空:{store} —— 拒绝产出全零'正常带'(空画像会污染下游锚)")
 
     scalars = [_card_scalars(c) for c in cards]
     out_bands = {m: _quantiles([s[m] for s in scalars]) for m in BAND_METRICS}
     payload = {"version": 1, "n_scripts": len(cards), "metrics": BAND_METRICS,
-               "bands": out_bands, "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文"}
+               "data_source": str(store), "status": "corpus" if len(cards) >= 50 else "placeholder",
+               "bands": out_bands,
+               "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文;"
+                       "n_scripts<50 时 status=placeholder,L-14 应拒绝以此为分布锚"}
     (mined / "bands.yaml").write_text(
         yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
@@ -257,10 +271,8 @@ def ingest(inbox_dir: str | Path, store_dir: str | Path) -> dict[str, Any]:
 
     report: dict[str, Any] = {"ingested": 0, "duplicates": 0, "skipped": [], "accepted": []}
     for p in sorted(inbox.rglob("*")):
-        if not p.is_file() or p.suffix.lower() == ".meta.yaml":
-            continue
-        if p.name == ".gitkeep":
-            continue
+        if not p.is_file() or p.name == ".gitkeep" or p.suffix.lower() == ".yaml":
+            continue  # .meta.yaml 侧车由 _load_meta 读取,不当正文
         if p.suffix.lower() not in READABLE_SUFFIXES:
             report["skipped"].append({"file": p.name, "reason": "nontext"})
             continue

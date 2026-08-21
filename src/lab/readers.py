@@ -43,7 +43,7 @@ def _read_docx(p: Path) -> str | None:
             return None
         xml = z.read("word/document.xml").decode("utf-8", errors="ignore")
     paras: list[str] = []
-    for para in re.findall(r"<w:p[ >].*?</w:p>", xml, flags=re.S):
+    for para in re.findall(r"<w:p[ >].*?</w:p>", xml, flags=re.DOTALL):
         runs = re.findall(r"<w:t[^>]*>([^<]*)</w:t>", para)
         if runs:
             paras.append("".join(runs))
@@ -66,11 +66,12 @@ def _read_ole_doc(p: Path) -> str | None:
 def _read_pdf(p: Path) -> str | None:
     try:
         from pypdf import PdfReader
+        from pypdf.errors import PdfReadError
     except ImportError:
         return None
     try:
         pages = [pg.extract_text() or "" for pg in PdfReader(str(p)).pages]
-    except Exception:
+    except (OSError, ValueError, RuntimeError, PdfReadError):  # 损坏/加密 pdf 统一按不可提取
         return None
     return "\n".join(pages) or None
 

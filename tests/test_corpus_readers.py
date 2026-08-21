@@ -1,6 +1,5 @@
 """L-01 补全 · 真实语料格式入库(docx/doc/pdf)。实现目标: src/lab/readers.py + corpus.ingest 集成。
 真实 inbox 为 docx/doc/pdf(698 文件,无 txt);无此卡则 L-02 的 bands 建立在 2 个 fixture 上。"""
-import io
 import zipfile
 from pathlib import Path
 
