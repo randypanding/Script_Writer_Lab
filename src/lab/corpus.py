@@ -100,7 +100,12 @@ def parse_script(path: str | Path) -> ScriptCard:
 
     注意双重语义:拼错的路径不会报错,会被当成正文解析成一张卡(spec 规定)。"""
     p = Path(path)
-    if p.is_file():
+    try:
+        is_file = p.is_file()
+    except OSError:
+        # POSIX 对超长"路径"(其实是被当路径的正文)抛 ENAMETOOLONG:按文本处理
+        is_file = False
+    if is_file:
         return ScriptCard(text=p.read_text(encoding="utf-8", errors="ignore"),
                           source_file=p.name, meta=_load_meta(p))
     return ScriptCard(text=str(path), source_file="", meta={})
