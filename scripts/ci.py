@@ -20,7 +20,7 @@ STEPS = [
 def main() -> int:
     for cmd in STEPS:
         print(f"\n$ {' '.join(cmd)}", flush=True)
-        r = subprocess.run(cmd, cwd=ROOT)
+        r = subprocess.run(cmd, cwd=ROOT, check=False)
         if r.returncode != 0:
             print(f"FAILED: {' '.join(cmd)}", file=sys.stderr)
             return r.returncode
