@@ -58,7 +58,7 @@ def run(brief: str | Path, config: dict[str, Any] | None = None, seed: int = 0,
         sw_dir: Path | None = None) -> Artifact:
     """一个 brief 一次 run。config: {profile, rerank, no_retrieval, no_cache, env, check}。"""
     config = config or {}
-    cwd = sw_dir or sw_checkout()
+    cwd = Path(config.get("sw_dir")) if config.get("sw_dir") else (sw_dir or sw_checkout())
     run_id = _ulid()  # 时间+随机 ULID:run 记录天然时序可查
     out_root = Path(runner_root) if runner_root else (ROOT / "out" / "runs")
     out_dir = out_root / run_id
