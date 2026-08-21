@@ -178,6 +178,69 @@ def _ep_char_counts(lines: list[str]) -> list[int]:
 
 # ---- 入库与 simhash 去重 ----
 
+BAND_METRICS = ("dialogue_ratio", "sent_len_mean", "sent_len_cv", "para_len_cv",
+                "hook_density", "ep_char_median", "episodes_per_script")
+
+
+def _quantiles(values: list[float]) -> dict[str, float]:
+    """P25/P50/P75(statistics.quantiles 线性插值,n=4);样本不足时退化重复边界。"""
+    if not values:
+        return {"p25": 0.0, "p50": 0.0, "p75": 0.0}
+    if len(values) < 4:
+        s = sorted(values)
+        return {"p25": round(s[0], 6), "p50": round(statistics.median(s), 6),
+                "p75": round(s[-1], 6)}
+    q1, q2, q3 = statistics.quantiles(values, n=4)
+    return {"p25": round(q1, 6), "p50": round(q2, 6), "p75": round(q3, 6)}
+
+
+def _card_scalars(card: dict[str, Any]) -> dict[str, float]:
+    eps = card.get("ep_char_counts") or []
+    return {
+        "dialogue_ratio": float(card.get("dialogue_ratio", 0)),
+        "sent_len_mean": float(card.get("sent_len_mean", 0)),
+        "sent_len_cv": float(card.get("sent_len_cv", 0)),
+        "para_len_cv": float(card.get("para_len_cv", 0)),
+        "hook_density": len(card.get("hook_positions", [])) / card["n_episodes"]
+        if card.get("n_episodes") else 0.0,
+        "ep_char_median": float(statistics.median(eps)) if eps else 0.0,
+        "episodes_per_script": float(card.get("n_episodes", 0)),
+    }
+
+
+def bands(store_dir: str | Path, mined_dir: str | Path) -> dict[str, Any]:
+    """L-02:全 store 卡片 → mined/bands.yaml(各指标 P25/P50/P75 正常带)+ corpus_stats.md 画像。"""
+    store, mined = Path(store_dir), Path(mined_dir)
+    mined.mkdir(parents=True, exist_ok=True)
+    cards = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(store.glob("card_*.json"))]
+
+    scalars = [_card_scalars(c) for c in cards]
+    out_bands = {m: _quantiles([s[m] for s in scalars]) for m in BAND_METRICS}
+    payload = {"version": 1, "n_scripts": len(cards), "metrics": BAND_METRICS,
+               "bands": out_bands, "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文"}
+    (mined / "bands.yaml").write_text(
+        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    kinds: dict[str, int] = {}
+    genres: dict[str, int] = {}
+    for c in cards:
+        kinds[c["kind"]] = kinds.get(c["kind"], 0) + 1
+        genres[c["meta"].get("claimed_genre", "未声明")] = genres.get(c["meta"].get("claimed_genre", "未声明"), 0) + 1
+    lines = [
+        "# 语料画像(corpus_stats)", "",
+        f"- 脚本数:**{len(cards)}**(drama_script={kinds.get('drama_script', 0)}, novel={kinds.get('novel', 0)})",
+        f"- 声称题材分布:{'、'.join(f'{k}×{v}' for k, v in sorted(genres.items())) or '—'}",
+        f"- 总字数(非空白):{sum(c.get('total_chars', 0) for c in cards)}",
+        f"- 集数范围:{min((c['n_episodes'] for c in cards), default=0)}–{max((c['n_episodes'] for c in cards), default=0)}",
+        "", "## 指标正常带(P25/P50/P75)", "",
+        "| 指标 | P25 | P50 | P75 |", "|---|---|---|---|",
+    ]
+    lines += [f"| {m} | {b['p25']} | {b['p50']} | {b['p75']} |" for m, b in out_bands.items()]
+    lines += ["", "> 依据 ADR-0001 L-D2 语料锚:'好'=不偏离带内。本文件为聚合产物,不含任何语料原文。"]
+    (mined / "corpus_stats.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return payload
+
+
 def ingest(inbox_dir: str | Path, store_dir: str | Path) -> dict[str, Any]:
     """inbox → store:解析 → 统计卡 JSON + 原文副本;simhash hamming≤3 判重。
 
@@ -219,10 +282,18 @@ def main(argv: list[str] | None = None) -> int:
     ing = sub.add_parser("ingest", help="inbox → store,simhash 去重")
     ing.add_argument("inbox", nargs="?", default="corpus/inbox")
     ing.add_argument("--store", default="corpus/store")
+    st = sub.add_parser("stats", help="store 卡片 → mined/bands.yaml + corpus_stats.md")
+    st.add_argument("--store", default="corpus/store")
+    st.add_argument("--mined", default="mined")
     args = ap.parse_args(argv)
     if args.cmd == "ingest":
         report = ingest(args.inbox, args.store)
         print(json.dumps(report, ensure_ascii=False, indent=1))
+        return 0
+    if args.cmd == "stats":
+        payload = bands(args.store, args.mined)
+        print(json.dumps({"n_scripts": payload["n_scripts"], "metrics": list(payload["bands"])},
+                         ensure_ascii=False))
         return 0
     return 1
 

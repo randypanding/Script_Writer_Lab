@@ -1,0 +1,40 @@
+version: 1
+n_scripts: 2
+metrics:
+- dialogue_ratio
+- sent_len_mean
+- sent_len_cv
+- para_len_cv
+- hook_density
+- ep_char_median
+- episodes_per_script
+bands:
+  dialogue_ratio:
+    p25: 0.0
+    p50: 0.21063
+    p75: 0.42126
+  sent_len_mean:
+    p25: 16.6667
+    p50: 18.1026
+    p75: 19.5385
+  sent_len_cv:
+    p25: 0.539643
+    p50: 0.701156
+    p75: 0.86267
+  para_len_cv:
+    p25: 0.0
+    p50: 0.283394
+    p75: 0.566789
+  hook_density:
+    p25: 0.0
+    p50: 1.0
+    p75: 2.0
+  ep_char_median:
+    p25: 127.0
+    p50: 163.5
+    p75: 200.0
+  episodes_per_script:
+    p25: 1.0
+    p50: 1.5
+    p75: 2.0
+note: 语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文
