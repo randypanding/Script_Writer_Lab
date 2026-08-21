@@ -5,6 +5,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 import yaml
+
 from lab.corpus import ingest, parse_script, stats_card
 
 FIX = Path(__file__).parent / "fixtures" / "corpus"
