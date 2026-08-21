@@ -20,6 +20,8 @@ from typing import Any
 
 import yaml
 
+from lab.readers import READABLE_SUFFIXES, extract_text, is_scriptlike
+
 # ---- 行分类正则(spec/parsing_conventions.md §行分类) ----
 EP_TITLE = re.compile(r"^第[0-9零一二三四五六七八九十百千]+[集章]")
 SCENE_LINE = re.compile(r"^场景[:：]")
@@ -255,11 +257,21 @@ def ingest(inbox_dir: str | Path, store_dir: str | Path) -> dict[str, Any]:
 
     report: dict[str, Any] = {"ingested": 0, "duplicates": 0, "skipped": [], "accepted": []}
     for p in sorted(inbox.rglob("*")):
-        if not p.is_file() or p.suffix not in {".txt", ".md", ".fountain", ".meta.yaml"}:
+        if not p.is_file() or p.suffix.lower() == ".meta.yaml":
             continue
-        if p.suffix == ".meta.yaml":
+        if p.name == ".gitkeep":
             continue
-        card = parse_script(p)
+        if p.suffix.lower() not in READABLE_SUFFIXES:
+            report["skipped"].append({"file": p.name, "reason": "nontext"})
+            continue
+        text = extract_text(p)
+        if text is None:
+            report["skipped"].append({"file": p.name, "reason": "unextractable"})
+            continue
+        if not is_scriptlike(text):
+            report["skipped"].append({"file": p.name, "reason": "not_scriptlike"})
+            continue
+        card = ScriptCard(text=text, source_file=p.name, meta=_load_meta(p))
         stats = stats_card(card)
         dup = next((sid for sh, sid in seen if hamming(sh, stats["simhash"]) <= HAMMING_SAME), None)
         if dup:
