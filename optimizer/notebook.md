@@ -3,7 +3,7 @@
 > 每轮实验一条记录,新记录加在最上面。格式不合规的轮次视为未发生(CI 会查)。
 
 ```yaml
-round: 0                    # 轮次号(会话序号)
+round: <int>                # 轮次号(会话序号,整数)
 date: "2026-08-22"
 hypothesis: "一句话:预期改 X 使主指标赢,因为 Y(证据引用)"
 surface: op.profile_knobs   # spec/operators/surface.yaml 的动作 id(M1/M2)
