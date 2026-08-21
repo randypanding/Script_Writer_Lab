@@ -153,8 +153,6 @@ def test_transitivity_chain_semantics():
             prompt = msgs[0]["content"]
             pa = prompt.split("Trajectory A:")[-1].split("Trajectory B:")[0]
             pb = prompt.split("Trajectory B:")[-1]
-            tag = ("orig", "mid", "strong")
-
             def mark(t):
                 return "orig" if "原版" in t else ("mid" if "强度0.5" in t else "strong")
 
