@@ -15,7 +15,7 @@
 uv sync
 cp .env.example .env        # 填三个模型家族的 key(生成 / dev 判官 / sealed 判官)
 # 把剧本放进 corpus/inbox/(任意格式,只进不出)
-make ci
+make ci                # Windows 无 make 时:uv run python scripts/ci.py(完全同构)
 ```
 
 ## 常用命令
