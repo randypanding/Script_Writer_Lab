@@ -18,8 +18,23 @@ cp .env.example .env        # 填三个模型家族的 key(生成 / dev 判官 /
 make ci
 ```
 
-## 今夜状态
+## 常用命令
 
-仓库为 **IR + 工单卡 + 红测试** 形态:`src/lab/` 为空,`tests/` 四个文件全红(ImportError 即红)。
-开发顺序见 `docs/WORK_ORDERS.md`(L-00 → L-15),治理见 `AGENTS.md`,设计宪法见 `adr/0001-lab-constitution.md`。
-所有工作在 `feature/lab-bootstrap` 分支上进行,`make ci` 全绿才合 main。
+| 作用 | 命令 |
+|---|---|
+| 语料入库(docx/doc/pdf/txt → store,simhash 去重) | `uv run python -m lab.corpus ingest corpus/inbox` |
+| 统计卡重算 / 正常带(bands 按 kind 分组) | `uv run python -m lab.corpus restat` / `stats` |
+| 偏好对生成(≥3000,schema 强校验) | `uv run python -m lab.pairs build` |
+| AI 味词典(三信号+PMI) | `uv run python -m lab.slop` |
+| 合成 brief(dev 30/val 15,卡方) | `uv run python -m lab.briefs` |
+| 判官考试(需 key) | `uv run python -m lab.judgekit exam --pairs out/pairs/exam.jsonl` |
+| 五面板 | `uv run python -m lab.report` |
+| 契约封印/校验 | `uv run python -m lab.contract_guard seal contract` / `verify contract` |
+
+真实 LLM 相关(--run-llm 门控)与上游 SW 运行见 `docs/WORK_ORDERS.md` 各卡验收命令。
+
+## 状态(bootstrap)
+
+L-00 → L-17 代码全部落地,`make ci` 全绿;真实语料已入库(1600+ 部,2GB 级)。
+剩余开放项(无 API key / 等上游):L-03/L-08/L-17 的真实 LLM 跑、SW champion 刻印 —— 见各 PR 偏差记录。
+优化 agent 从 `OPTIMIZER.md` 进场。
