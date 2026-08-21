@@ -129,3 +129,49 @@ def _read(db):
 def test_axis_problem_has_no_answer_leak():
     p = axis_problem("l0_fact")
     assert "l0_fact" in p and "退化" not in p and "答案" not in p
+
+
+
+def test_transitivity_chain_semantics():
+    """传递性链 = orig>mid、mid>strong ⇒ orig>strong。
+    断言判官实际收到的比较对:必须含 (mid,strong),且 (orig,mid) 只出现一次
+    (旧实现把 orig>mid 比较了两遍、从不比 mid vs strong —— 本测试锁死新语义)。"""
+    from lab.judgekit import _transitivity
+    from lab.pairs import build_pair
+
+    pairs = [build_pair(
+        axis="prose_craft", a_text="【甲】原版", b_text=f"【乙】退化强度{sev}",
+        label="a_win", construction={"kind": "corpus_degraded", "op_id": "D05_inject_slop",
+                                     "severity": sev, "source_script_id": "scr:" + "0" * 25},
+        split="exam") for sev in (0.5, 1.0)]
+
+    compared: list[tuple[str, str]] = []
+
+    class RecordMock(MockVerifierClient):
+        def _create(self, **kw):
+            msgs = kw.get("messages", [])
+            prompt = msgs[0]["content"]
+            pa = prompt.split("Trajectory A:")[-1].split("Trajectory B:")[0]
+            pb = prompt.split("Trajectory B:")[-1]
+            tag = ("orig", "mid", "strong")
+
+            def mark(t):
+                return "orig" if "原版" in t else ("mid" if "强度0.5" in t else "strong")
+
+            if len(msgs) > 1:  # prefill:按被问的槽位给字母(质量 orig>mid>strong → A/B/C)
+                is_tag_a = msgs[-1]["content"].rstrip().endswith("<score_A>")
+                target = mark(pa) if is_tag_a else mark(pb)
+                q = {"orig": 3, "mid": 2, "strong": 1}[target]
+                return _resp("ABC"[3 - q])
+            compared.append((mark(pa), mark(pb)))
+            return _resp("分析")
+
+    cfg = {"client": RecordMock(), "model": "m", "k": 1}
+    t = _transitivity(pairs, "prose_craft", cfg)
+    assert t == 1.0
+    distinct = set(compared)
+    assert ("mid", "strong") in distinct     # 链的中段必须被比较(旧实现从不比它)
+    assert ("strong", "mid") in distinct
+    assert ("orig", "strong") in distinct and ("strong", "orig") in distinct
+    assert distinct == {("orig", "mid"), ("mid", "orig"), ("mid", "strong"),
+                        ("strong", "mid"), ("orig", "strong"), ("strong", "orig")}

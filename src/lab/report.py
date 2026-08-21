@@ -73,7 +73,9 @@ def render(db_path: str | Path, out_path: str | Path | None = None,
         lines += [f"| {r['round']} | {r['winrate']} | [{r['ci_lo']}, {r['ci_hi']}] | {r['sealed_score']} |"
                   for r in sealed_rows]
         latest = sealed_rows[-1]
-        verdict = "✅ CI 下界 > 0" if (latest["ci_lo"] or 0) > 0 else "❌ CI 下界 ≤ 0(回滚)"
+        # 胜率的无差异基线是 0.5(对 champion 平价);promotion.yaml 的"胜率差 CI 下界>0"等价于胜率 CI 下界>0.5
+        verdict = ("✅ CI 下界 > 0.5(胜过 champion)" if (latest["ci_lo"] or 0) > 0.5
+                   else "❌ CI 下界 ≤ 0.5(未胜过 champion,回滚)")
         lines += ["", f"**最新轮 {latest['round']}:{verdict}**"]
     else:
         lines += ["_无数据(sealed 确认尚未发生;bootstrap 带需 ≥ 12 briefs,见 promotion.yaml)_"]

@@ -272,11 +272,12 @@ def _transitivity(pairs: list[dict[str, Any]], axis: str, judge_cfg: dict[str, A
         if len(sevs) < 2:
             continue
         mid_p, strong_p = by_sev[sevs[0]], by_sev[sevs[-1]]
+        # 链:orig > mid(弱退化)且 mid > strong(强退化)⇒ 检查 orig > strong
         vm = score_pair(mid_p["a_text"], mid_p["b_text"], axis, judge_cfg)
-        vs = score_pair(strong_p["a_text"], strong_p["b_text"], axis, judge_cfg)
-        if not (vm.score_a > vm.score_b and vs.score_a > vs.score_b):
+        vms = score_pair(mid_p["b_text"], strong_p["b_text"], axis, judge_cfg)
+        if not (vm.score_a > vm.score_b and vms.score_a > vms.score_b):
             continue  # 前提不成立,不计入
-        vo = score_pair(strong_p["a_text"], mid_p["b_text"], axis, judge_cfg)  # orig vs mid-degraded
+        vo = score_pair(strong_p["a_text"], strong_p["b_text"], axis, judge_cfg)
         checked += 1
         consistent += vo.score_a > vo.score_b
     return round(consistent / checked, 4) if checked else None

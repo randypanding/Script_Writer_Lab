@@ -250,7 +250,8 @@ def bands(store_dir: str | Path, mined_dir: str | Path) -> dict[str, Any]:
                for k in sorted({c["kind"] for c in cards})}
     out_bands = _group(cards)["bands"]
     payload = {"version": 2, "n_scripts": len(cards), "metrics": BAND_METRICS,
-               "data_source": str(store), "status": "corpus" if len(cards) >= 50 else "placeholder",
+               "data_source": store.resolve().as_posix(),
+               "status": "corpus" if len(cards) >= 50 else "placeholder",
                "bands": out_bands, "by_kind": by_kind,
                "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文;"
                        "n_scripts<50 时 status=placeholder,L-14 应拒绝以此为分布锚;"

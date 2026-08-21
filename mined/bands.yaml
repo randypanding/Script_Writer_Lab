@@ -8,7 +8,7 @@ metrics:
 - hook_density
 - ep_char_median
 - episodes_per_script
-data_source: corpus\store
+data_source: D:/Projects/Script_Writer_Lab/corpus/store
 status: corpus
 bands:
   dialogue_ratio:
