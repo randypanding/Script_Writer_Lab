@@ -227,7 +227,8 @@ def _speakers(lines: list[str]) -> list[str]:
 
 
 def _is_dialogue_line(ln: str) -> bool:
-    return bool(re.match(r"^[一-龥A-Za-z{1,8}][:：]", ln.strip()))
+    m = re.match(r"^([一-龥A-Za-z]{1,8})[:：]", ln.strip())
+    return bool(m) and m.group(1) != "场景" and not ln.strip().startswith("【")
 
 
 _AGE = re.compile(r"(\d{1,3})\s*岁")

@@ -1,5 +1,5 @@
 version: 1
-n_scripts: 2
+n_scripts: 1665
 metrics:
 - dialogue_ratio
 - sent_len_mean
@@ -8,33 +8,36 @@ metrics:
 - hook_density
 - ep_char_median
 - episodes_per_script
+data_source: corpus\store
+status: corpus
 bands:
   dialogue_ratio:
-    p25: 0.0
-    p50: 0.21063
-    p75: 0.42126
+    p25: 0.005619
+    p50: 0.024444
+    p75: 0.075134
   sent_len_mean:
-    p25: 16.6667
-    p50: 18.1026
-    p75: 19.5385
+    p25: 31.7281
+    p50: 39.0215
+    p75: 48.94725
   sent_len_cv:
-    p25: 0.539643
-    p50: 0.701156
-    p75: 0.86267
+    p25: 0.698327
+    p50: 0.795489
+    p75: 0.932038
   para_len_cv:
     p25: 0.0
-    p50: 0.283394
-    p75: 0.566789
+    p50: 0.0
+    p75: 0.0
   hook_density:
     p25: 0.0
-    p50: 1.0
-    p75: 2.0
+    p50: 0.0
+    p75: 0.0
   ep_char_median:
-    p25: 127.0
-    p50: 163.5
-    p75: 200.0
+    p25: 2349.5
+    p50: 3087.0
+    p75: 3512.25
   episodes_per_script:
-    p25: 1.0
-    p50: 1.5
-    p75: 2.0
-note: 语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文
+    p25: 249.0
+    p50: 653.0
+    p75: 1100.0
+note: 语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文;n_scripts<50 时 status=placeholder,L-14
+  应拒绝以此为分布锚

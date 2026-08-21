@@ -19,6 +19,14 @@ import jsonschema
 import yaml
 
 SCHEMA_PATH = Path(__file__).parents[2] / "spec" / "schemas" / "pairs.schema.yaml"
+_SCHEMA_CACHE: dict | None = None
+
+
+def _schema() -> dict:
+    global _SCHEMA_CACHE
+    if _SCHEMA_CACHE is None:
+        _SCHEMA_CACHE = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return _SCHEMA_CACHE
 
 AXES = {
     "naturalness", "hook_strength", "placement_integration", "transportation",
@@ -66,8 +74,9 @@ def build_pair(
     if not str(a_text).strip() or not str(b_text).strip():
         raise ValueError("a_text/b_text 不得为空")
     op_id = str(construction.get("op_id", ""))
+    digest = hashlib.sha256((a_text + "\0" + b_text).encode("utf-8")).hexdigest()
     pair = {
-        "pair_id": f"pair:{_ulid(axis + '|' + a_text[:64] + '|' + b_text[:64] + '|' + kind + '|' + op_id)}",
+        "pair_id": f"pair:{_ulid(axis + '|' + digest + '|' + kind + '|' + op_id)}",
         "axis": axis,
         "a_text": a_text,
         "b_text": b_text,
@@ -76,8 +85,7 @@ def build_pair(
         "split": split,
         "created_at": datetime.now(UTC).isoformat(),
     }
-    schema = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
-    jsonschema.validate(pair, schema)
+    jsonschema.validate(pair, _schema())
     return pair
 
 

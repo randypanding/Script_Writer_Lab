@@ -152,14 +152,19 @@ def stats_card(card: ScriptCard) -> dict[str, Any]:
     sent_len_cv = (statistics.pstdev(sent_lens) / sent_len_mean) if sent_len_mean else 0.0
 
     paras = [p for p in (blk.strip() for blk in card.text.split("\n\n")) if p]
+    if len(paras) <= 1:  # 无空行文本(格式化提取常态):按非空行计段落(parsing_conventions §段落口径)
+        paras = lines
     para_lens = [len("".join(p.split())) for p in paras]
     para_len_cv = (statistics.pstdev(para_lens) / statistics.fmean(para_lens)) if len(para_lens) > 1 and statistics.fmean(para_lens) else 0.0
 
     ep_char_counts = _ep_char_counts(lines)
+    # kind 判定(parsing_conventions §真实语料修正):场次行,或 集标题+高密度对白行
+    dialogue_line_ratio = (n_lines / n) if n else 0.0
+    kind = "drama_script" if scene_idx or (n_episodes and dialogue_line_ratio >= 0.3) else "novel"
 
     return {
         "script_id": f"scr:{_ulid()}",
-        "kind": "drama_script" if scene_idx else "novel",
+        "kind": kind,
         "n_episodes": n_episodes,
         "n_scenes": len(scene_idx),
         "n_lines": n_lines,
@@ -220,38 +225,49 @@ def _card_scalars(card: dict[str, Any]) -> dict[str, float]:
 
 
 def bands(store_dir: str | Path, mined_dir: str | Path) -> dict[str, Any]:
-    """L-02:全 store 卡片 → mined/bands.yaml(各指标 P25/P50/P75 正常带)+ corpus_stats.md 画像。"""
+    """L-02:全 store 卡片 → mined/bands.yaml(各指标 P25/P50/P75 正常带)+ corpus_stats.md 画像。
+
+    bands 按 kind 分组(drama_script / novel 各自的正常带):混合分组的"正常带"
+    两头都不是(剧本与小说的对白占比/句长分布天然不同),会把锚拉平到无意义。
+    顶层 bands = 全体(向后兼容),by_kind = 分组(L-14 消费 drama_script 组)。
+    """
     store, mined = Path(store_dir), Path(mined_dir)
     mined.mkdir(parents=True, exist_ok=True)
     cards = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(store.glob("card_*.json"))]
     if not cards:
         raise ValueError(f"store 为空:{store} —— 拒绝产出全零'正常带'(空画像会污染下游锚)")
 
-    scalars = [_card_scalars(c) for c in cards]
-    out_bands = {m: _quantiles([s[m] for s in scalars]) for m in BAND_METRICS}
-    payload = {"version": 1, "n_scripts": len(cards), "metrics": BAND_METRICS,
+    def _group(cs: list[dict[str, Any]]) -> dict[str, Any]:
+        scalars = [_card_scalars(c) for c in cs]
+        return {"n": len(cs), "bands": {m: _quantiles([s[m] for s in scalars]) for m in BAND_METRICS}}
+
+    by_kind = {k: _group([c for c in cards if c["kind"] == k])
+               for k in sorted({c["kind"] for c in cards})}
+    out_bands = _group(cards)["bands"]
+    payload = {"version": 2, "n_scripts": len(cards), "metrics": BAND_METRICS,
                "data_source": str(store), "status": "corpus" if len(cards) >= 50 else "placeholder",
-               "bands": out_bands,
+               "bands": out_bands, "by_kind": by_kind,
                "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文;"
-                       "n_scripts<50 时 status=placeholder,L-14 应拒绝以此为分布锚"}
+                       "n_scripts<50 时 status=placeholder,L-14 应拒绝以此为分布锚;"
+                       "by_kind.drama_script 是 brief 生成的分布锚(剧本≠小说)"}
     (mined / "bands.yaml").write_text(
         yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
-    kinds: dict[str, int] = {}
+    kinds: dict[str, int] = {k: g["n"] for k, g in by_kind.items()}
     genres: dict[str, int] = {}
     for c in cards:
-        kinds[c["kind"]] = kinds.get(c["kind"], 0) + 1
         genres[c["meta"].get("claimed_genre", "未声明")] = genres.get(c["meta"].get("claimed_genre", "未声明"), 0) + 1
     lines = [
         "# 语料画像(corpus_stats)", "",
-        f"- 脚本数:**{len(cards)}**(drama_script={kinds.get('drama_script', 0)}, novel={kinds.get('novel', 0)})",
+        f"- 脚本数:**{len(cards)}**" + "".join(f", {k}={v}" for k, v in sorted(kinds.items())),
         f"- 声称题材分布:{'、'.join(f'{k}×{v}' for k, v in sorted(genres.items())) or '—'}",
         f"- 总字数(非空白):{sum(c.get('total_chars', 0) for c in cards)}",
         f"- 集数范围:{min((c['n_episodes'] for c in cards), default=0)}–{max((c['n_episodes'] for c in cards), default=0)}",
-        "", "## 指标正常带(P25/P50/P75)", "",
-        "| 指标 | P25 | P50 | P75 |", "|---|---|---|---|",
     ]
-    lines += [f"| {m} | {b['p25']} | {b['p50']} | {b['p75']} |" for m, b in out_bands.items()]
+    for kind, g in sorted(by_kind.items()):
+        lines += ["", f"## {kind} 正常带(n={g['n']})", "",
+                  "| 指标 | P25 | P50 | P75 |", "|---|---|---|---|"]
+        lines += [f"| {m} | {b['p25']} | {b['p50']} | {b['p75']} |" for m, b in g["bands"].items()]
     lines += ["", "> 依据 ADR-0001 L-D2 语料锚:'好'=不偏离带内。本文件为聚合产物,不含任何语料原文。"]
     (mined / "corpus_stats.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return payload
@@ -300,6 +316,28 @@ def ingest(inbox_dir: str | Path, store_dir: str | Path) -> dict[str, Any]:
     return report
 
 
+def restat(store_dir: str | Path) -> int:
+    """按当前统计口径重算 store 内全部卡片(保留 script_id 与文件名,防断链)。
+
+    stats_card 每次生成新 ULID;重算时用旧卡的 script_id 覆盖,保证
+    script_id 稳定 —— 下游(偏好对/分层抽样)以它为主键。
+    """
+    store = Path(store_dir)
+    n = 0
+    for text_file in sorted(store.glob("text_*.txt")):
+        sid_tail = text_file.stem.removeprefix("text_")
+        card_file = store / f"card_{sid_tail}.json"
+        old = json.loads(card_file.read_text(encoding="utf-8")) if card_file.exists() else {}
+        card = parse_script(text_file)
+        stats = stats_card(card)
+        stats["script_id"] = old.get("script_id", stats["script_id"])
+        stats["meta"] = {**stats["meta"], **{k: v for k, v in old.get("meta", {}).items()
+                                             if k in ("claimed_genre", "claimed_platform")}}
+        card_file.write_text(json.dumps(stats, ensure_ascii=False, indent=1), encoding="utf-8")
+        n += 1
+    return n
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="lab.corpus")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -309,10 +347,16 @@ def main(argv: list[str] | None = None) -> int:
     st = sub.add_parser("stats", help="store 卡片 → mined/bands.yaml + corpus_stats.md")
     st.add_argument("--store", default="corpus/store")
     st.add_argument("--mined", default="mined")
+    rs = sub.add_parser("restat", help="按当前口径重算卡片(保留 script_id)")
+    rs.add_argument("--store", default="corpus/store")
     args = ap.parse_args(argv)
     if args.cmd == "ingest":
         report = ingest(args.inbox, args.store)
         print(json.dumps(report, ensure_ascii=False, indent=1))
+        return 0
+    if args.cmd == "restat":
+        n = restat(args.store)
+        print(json.dumps({"restat": n}, ensure_ascii=False))
         return 0
     if args.cmd == "stats":
         payload = bands(args.store, args.mined)

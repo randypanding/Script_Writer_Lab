@@ -1,5 +1,6 @@
 """L-01 补全 · 真实语料格式入库(docx/doc/pdf)。实现目标: src/lab/readers.py + corpus.ingest 集成。
 真实 inbox 为 docx/doc/pdf(698 文件,无 txt);无此卡则 L-02 的 bands 建立在 2 个 fixture 上。"""
+import json
 import zipfile
 from pathlib import Path
 
@@ -82,3 +83,19 @@ def test_ingest_skips_unextractable_with_reason(tmp_path):
     r = ingest(inbox, tmp_path / "store")
     assert r["ingested"] == 0
     assert any(s["file"] == "坏.docx" and s.get("reason") for s in r["skipped"])
+
+
+def test_restat_preserves_script_id(tmp_path):
+    from lab.corpus import ingest, restat
+    from lab.readers import extract_text  # noqa: F401
+    inbox = tmp_path / "inbox"
+    inbox.mkdir()
+    _make_docx(inbox, "剧1.docx", MINI)
+    store = tmp_path / "store"
+    ingest(inbox, store)
+    old = json.loads(next(store.glob("card_*.json")).read_text(encoding="utf-8"))
+    n = restat(store)
+    assert n == 1
+    new = json.loads(next(store.glob("card_*.json")).read_text(encoding="utf-8"))
+    assert new["script_id"] == old["script_id"]
+    assert new["simhash"] == old["simhash"]

@@ -5,6 +5,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 import yaml
+
 from lab.pairs import build_pair
 
 SCHEMA = yaml.safe_load(

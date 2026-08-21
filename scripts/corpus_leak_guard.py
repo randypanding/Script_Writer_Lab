@@ -3,10 +3,11 @@
 
 三道防线:
 1. 路径防线:corpus/ 与 transcripts/ 下任何文件被 git 跟踪 → 失败。
-2. 内容防线(v1,真实语料规模):语料拼接串按步长 25 建立 50 字符窗口的 md5 键集;
-   对每个待提交文本文件以步长 1 滚动全量探查,哈希命中即回查原文确认。
-   检出保证:粘贴 ≥ 50+25-1 = 75 字符必中;50–74 字符按对齐概率检出。
-   (v0 的逐探针全串搜索在百 MB 语料上为 O(n²),不可用;L-15 再升级滚动哈希索引。)
+2. 内容防线(v1,真实语料规模):inbox 语料按文件建立 50 字符窗口的确定性 md5 键集
+   (步长 25,含 CJK 过滤,按文件粒度磁盘缓存);对每个待提交文本文件以步长 1 滚动
+   全量探查,键命中即判失败(64 位碰撞期望 ~1e-8,不回查原文——误报代价是人工复核,
+   漏报代价是语料泄漏)。检出保证:粘贴 ≥ 50+25-1 = 75 字符必中;50–74 字符按对齐
+   概率检出。(v0 的逐探针全串搜索在 GB 级语料上为 O(n²),不可用;L-15 再升级。)
 3. sealed 防线(L-09):contract/ 存在 .seal.lock.json 时重算哈希比对,不一致 → 失败。
    (LAB_SEAL_KEY 设置时连 HMAC 一起校验;未封印视为通过,封印是显式动作。)
 
@@ -47,7 +48,13 @@ def _has_cjk(win: str) -> bool:
 
 
 CACHE_DIR = ROOT / "out" / "guard_cache"
-INDEX_VERSION = 3  # 索引算法变更时 +1,作废旧缓存
+INDEX_VERSION = 4  # 索引算法变更时 +1,作废旧缓存
+
+
+def _win_key(win: str) -> int:
+    """确定性窗口键:md5 前 8 字节。不用内置 hash()——它按进程随机化(PYTHONHASHSEED),
+    磁盘缓存的键跨进程不可比,会让守卫静默放行一切。"""
+    return int.from_bytes(md5(win.encode("utf-8", "ignore")).digest()[:8], "big")
 
 
 def _file_keys(text: str) -> set[int]:
@@ -55,7 +62,7 @@ def _file_keys(text: str) -> set[int]:
     for pos in range(0, max(len(text) - PROBE_LEN, 0) + 1, STRIDE):
         win = text[pos : pos + PROBE_LEN]
         if _has_cjk(win):
-            keys.add(hash(win))
+            keys.add(_win_key(win))
     return keys
 
 
@@ -104,7 +111,7 @@ def window_hits(text: str, keys: set[int]) -> int:
         win = text[pos : pos + PROBE_LEN]
         if not _has_cjk(win):
             continue
-        if hash(win) in keys:
+        if _win_key(win) in keys:
             hits += 1
     return hits
 
