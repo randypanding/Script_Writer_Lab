@@ -13,6 +13,7 @@ import json
 import re
 import sys
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -151,16 +152,21 @@ def build_corpus_degraded(
     *,
     severities: tuple[float, ...] = (0.5, 1.0),
     llm_mid: bool = False,
+    llm_mid_scripts: int = 300,
     rng_seed: int = 7,
 ) -> list[dict[str, Any]]:
     """store 全部语料 × deterministic(可选 llm_mid)算子 → 偏好对列表。
 
-    片段截取:每部取正文前 1200 字符(对判官足够、原文不出 out/ 以外 tracked 面)。
+    片段截取:_narrative_excerpt(跳过片头元数据,两种文体)。
+    llm_mid 算子每个都要一次真实改写,只作用于前 llm_mid_scripts 部有正文的语料
+    (默认 300 部 × 5 算子 × 2 强度 ≈ 3000 次改写,swarm 免费路径可承受)。
     """
     from lab.degrade import REGISTRY
 
     store = Path(store_dir)
     pairs: list[dict[str, Any]] = []
+    llm_jobs: list[tuple[str, str, str, float]] = []  # (sid, fragment, op_id, severity)
+    llm_mid_used = 0
     for card_file in sorted(store.glob("card_*.json")):
         card = json.loads(card_file.read_text(encoding="utf-8"))
         sid = card["script_id"]
@@ -171,8 +177,13 @@ def build_corpus_degraded(
         fragment = _narrative_excerpt(text)
         if fragment is None:
             continue  # 元数据残片不造对
+        use_llm = llm_mid and llm_mid_used < llm_mid_scripts
+        llm_mid_used += 1 if use_llm else 0
         for op_id, op in sorted(REGISTRY.items()):
-            if op.mechanism == "llm_mid" and not llm_mid:
+            if op.mechanism == "llm_mid":
+                if use_llm:
+                    for sev in severities:
+                        llm_jobs.append((sid, fragment, op_id, sev))
                 continue
             for sev in severities:
                 degraded = op.apply(fragment, sev, rng_seed)
@@ -184,6 +195,23 @@ def build_corpus_degraded(
                                   "severity": sev, "source_script_id": sid},
                     split=_split_of(sid),
                 ))
+    # llm_mid 并行改写(每次一次真实调用;串行 3000 次 × 45s 不可承受)
+    def _run_llm(job: tuple[str, str, str, float]) -> dict[str, Any] | None:
+        sid, fragment, op_id, sev = job
+        op = REGISTRY[op_id]
+        degraded = op.apply(fragment, sev, rng_seed)
+        if degraded == fragment:
+            return None
+        return build_pair(axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
+                          construction={"kind": "corpus_degraded", "op_id": op_id,
+                                        "severity": sev, "source_script_id": sid},
+                          split=_split_of(sid))
+
+    if llm_jobs:
+        with ThreadPoolExecutor(max_workers=24) as ex:
+            for res in ex.map(_run_llm, llm_jobs):
+                if res is not None:
+                    pairs.append(res)
     return pairs
 
 
@@ -338,12 +366,15 @@ def main(argv: list[str] | None = None) -> int:
     gen.add_argument("--out", default="out/pairs")
     gen.add_argument("--severities", default="0.5,1.0")
     gen.add_argument("--llm-mid", action="store_true", help="纳入 llm_mid 算子(真实 API)")
+    gen.add_argument("--llm-mid-limit", type=int, default=300,
+                     help="llm_mid 算子只作用于前 N 部有正文的语料(每次改写都是一次真实调用)")
     gen.add_argument("--gen-dir", default="out/runs",
                      help="SW 运行产物目录(扫 ir.json 提取生成文本;缺省包含全部来源)")
     args = ap.parse_args(argv)
     if args.cmd == "build":
         sevs = tuple(float(x) for x in args.severities.split(",") if x.strip())
-        pairs = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid)
+        pairs = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid,
+                                      llm_mid_scripts=args.llm_mid_limit)
         gen_texts = _gen_texts_from_runs(args.gen_dir)
         pairs += build_gen_degraded(gen_texts, severities=sevs)
         pairs += build_corpus_vs_gen(args.store, gen_texts)

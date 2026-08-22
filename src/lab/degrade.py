@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import itertools
+import os
 import random
 import re
 from collections.abc import Callable
@@ -370,8 +371,12 @@ _LLM_PRELUDE = "你是短剧文本退化器。对下面的剧本片段执行指�
 
 def _llm_rewrite(instruction: str, text: str, severity: float, seed: int) -> str:
     from lab.models import route
+
+    # 默认走 CNB 免费集群(标签由构造保证,改写质量随机无妨);
+    # 要更高保真退化,设 DEGRADE_LLM_SLOT 到付费槽位。
+    slot = os.environ.get("DEGRADE_LLM_SLOT", "synthesis_swarm")
     prompt = (_LLM_PRELUDE + f"退化指令:{instruction}(强度 {severity:.2f},随机种子 {seed})\n---\n{text}")
-    return route("generation", prompt, caller="lab.degrade", temperature=0.7)
+    return route(slot, prompt, caller="lab.degrade", temperature=0.7)
 
 
 def _d03_flatten_cliffhanger(text: str, severity: float, seed: int) -> str:

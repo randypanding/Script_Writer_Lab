@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 4
+date: "2026-08-23"
+hypothesis: "测量迭代②:v3 考试坐实 corpus_vs_gen 构造标签与判官偏好系统性相反(naturalness/l0_dialogue 灵敏度 0.00/0.01 且位置偏差低=稳定判反);考试改为只用退化锚,缺失轴由 llm_mid 算子经 CNB 免费改写补齐"
+surface: op.propose_check_rule
+change: "run_exam_packed 排除 corpus_vs_gen(留 train/val);degrade llm_mid 默认走 synthesis_swarm;pairs llm_mid 限量 300 部+并行改写;swarm 韧性三件套(死窗拉黑换窗/弃票不崩/连续失败熔断)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "v3 成绩(修复后退化锚):transportation 0.87 / placement 0.72 / prose_craft 0.70 / l0_structure 0.67;位置偏差仍 0.4 上下(随机后端波动,k 聚合的部分药效);单个死窗曾杀死整场考试(已修)。v4 链路(重建 3000 次免费改写 + 全考)运行中,成绩回填下轮。"
+```
+```yaml
 round: 3
 date: "2026-08-23"
 hypothesis: "测量基建迭代(非产物变更):首考 FAIL 的三根因修复后,判官灵敏度应回到可分辨水平——①语料锚=元数据残片 ②D08 矛盾句与事实不同窗 ③小说文体被片段选择器误杀"

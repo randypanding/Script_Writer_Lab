@@ -223,12 +223,18 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
 
     gates = _gate_cfg()["exam"]
     k = int(judge_cfg.get("k", 5))
+    # 考试只用退化锚(构造保证的缺陷):corpus_vs_gen 的"偏离带=劣"标签
+    # 与判官真实偏好系统性相反(实证:naturalness/l0_dialogue 灵敏度 0.00),
+    # 留在 train/val 当训练料,不进考场。
+    excluded = sum(1 for p in exam_pairs if p["construction"].get("kind") == "corpus_vs_gen")
+    exam_pairs = [p for p in exam_pairs if p["construction"].get("kind") != "corpus_vs_gen"]
     by_axis: dict[str, list[dict[str, Any]]] = {}
     for p in exam_pairs:
         by_axis.setdefault(p["axis"], []).append(p)
 
     report: dict[str, Any] = {"axes": {}, "gates": gates, "judge": judge_cfg.get("model_slot"),
-                              "engine": "k_sample_vote_packed", "transitivity_skipped": True}
+                              "engine": "k_sample_vote_packed", "transitivity_skipped": True,
+                              "corpus_vs_gen_excluded": excluded}
     for axis, pairs in sorted(by_axis.items()):
         # 每对 × 两方向 × k 次 = 独立投票项;方向 1 即位置交换
         items: list[tuple[int, int, str, str]] = []

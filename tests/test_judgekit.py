@@ -171,6 +171,40 @@ def test_run_exam_packed_aggregates(monkeypatch):
     assert report["engine"] == "k_sample_vote_packed"
 
 
+def test_run_exam_packed_excludes_corpus_vs_gen(monkeypatch):
+    """考试只用退化锚:corpus_vs_gen 标签与判官真实偏好系统性相反(实证),不进考场。"""
+    import re as _re
+
+    import lab.judgekit as jk
+    from lab import swarm
+    from lab.pairs import build_pair
+
+    def _mk(kind, i):
+        return build_pair(axis="prose_craft", a_text=f"……【甲】原版{i}……", b_text=f"……【乙】退化{i}……",
+                          label="a_win", construction={"kind": kind, "op_id": "D05_inject_slop",
+                                                       "severity": 1,
+                                                       "source_script_id": f"scr:ex{i:024d}"},
+                          split="exam")
+
+    pairs = [_mk("corpus_degraded", i) for i in range(2)] + \
+            [_mk("corpus_vs_gen", i) for i in range(2, 5)]
+
+    def fake_batch(instructions, **kw):
+        replies = []
+        for ins in instructions:
+            letters = []
+            for gi, g in enumerate(_re.split(r"第\d+组:", ins)[1:], 1):
+                first_seg = g.split("第二段:")[0]
+                letters.append(f"{gi}:" + ("A" if "【甲】" in first_seg else "B"))
+            replies.append(" ".join(letters))
+        return replies
+
+    monkeypatch.setattr(swarm, "run_batch", fake_batch)
+    report = jk.run_exam_packed({"model_slot": "judge_dev_swarm", "k": 1}, pairs, pack_size=5)
+    assert report["corpus_vs_gen_excluded"] == 3
+    assert report["axes"]["prose_craft"]["n_pairs"] == 2  # 只有退化锚进了考场
+
+
 def test_run_exam_mock_report(tmp_path):
     from lab.degrade import REGISTRY
     from lab.pairs import build_pair

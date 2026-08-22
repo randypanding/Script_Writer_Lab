@@ -29,6 +29,26 @@ def test_build_corpus_degraded_and_no_leak(tmp_path):
     assert_no_split_leakage(pairs)  # 同 script_id 同 split
 
 
+def test_llm_mid_parallel_build(tmp_path, monkeypatch):
+    """llm_mid 算子:并行执行 + llm_mid_scripts 限量生效。"""
+    from collections import Counter
+    from types import SimpleNamespace
+
+    import lab.degrade as deg
+
+    fake_det = SimpleNamespace(mechanism="deterministic", axis="prose_craft",
+                               apply=lambda t, s, seed: t + " [DET]")
+    fake_llm = SimpleNamespace(mechanism="llm_mid", axis="naturalness",
+                               apply=lambda t, s, seed: t + " [LLM]")
+    monkeypatch.setattr(deg, "REGISTRY", {"D99_det": fake_det, "D98_llm": fake_llm})
+    store = _make_store(tmp_path, 2)
+    pairs = build_corpus_degraded(store, severities=(1.0,), llm_mid=True, llm_mid_scripts=10)
+    kinds = Counter(p["construction"]["op_id"] for p in pairs)
+    assert kinds["D99_det"] == 2 and kinds["D98_llm"] == 2
+    limited = build_corpus_degraded(store, severities=(1.0,), llm_mid=True, llm_mid_scripts=1)
+    assert Counter(p["construction"]["op_id"] for p in limited)["D98_llm"] == 1
+
+
 def test_write_jsonl_roundtrip(tmp_path):
     store = _make_store(tmp_path, 3)
     pairs = build_corpus_degraded(store, severities=(1.0,))
