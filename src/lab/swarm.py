@@ -89,9 +89,8 @@ def cleanup_pool() -> dict:
     status = pool_status()
     closed = []
     for s in status:
-        if (not s["free"]) or s["comments"] >= MAX_HEALTHY_COMMENTS:
-            if close_window(s["number"]):
-                closed.append(s["number"])
+        if ((not s["free"]) or s["comments"] >= MAX_HEALTHY_COMMENTS) and close_window(s["number"]):
+            closed.append(s["number"])
     return {"closed": closed, "remaining_healthy_free": len(healthy_free_windows(status))}
 
 
