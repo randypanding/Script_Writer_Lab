@@ -47,7 +47,7 @@ def make_brief(spec: dict[str, Any], split: str, idx: int, rng: random.Random) -
     return {
         "project_title": f"合成-{split}-{idx:02d}-{genre}",
         "profile": "short_drama_v1",
-        "brand": "synthetic_lab",
+        "brand": "demo_tea",  # SW 既有 demo 品牌(合成 brief 必须指向存在的品牌)
         "raw_request": (
             f"我们想拍一个 {episodes} 集的{genre}竖屏短剧,每集约 {minutes:.1f} 分钟。"
             f"主要场景在{anchor}附近,演员控制在三个左右。"

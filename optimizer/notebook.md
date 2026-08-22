@@ -18,9 +18,6 @@ decision: rejected|accepted_pending_sealed|promoted   # 由 runner 按契约判,
 sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
-
-## 记录
-
 ```yaml
 round: 0
 date: "模板示例(非真实实验)"
@@ -31,4 +28,15 @@ ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: nu
 decision: rejected
 sealed_score: null
 notes: "这是模板占位记录;真实轮次请按上述格式新增。"
+```
+```yaml
+round: 1
+date: "2026-08-22"
+hypothesis: "dry-run:mock LLM 管线下验证 M2 面接线(变更可应用/可打分/可归因),不产生真实优化结论"
+surface: op.memory_assembler
+change: "lab.overlay 应用 assembler/compress/thread 三组 profile 补丁到 worktree"
+ab: {briefs: 1, seeds: [1], winrate: 0.0, ci95: [0.0, 0.0], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "dry-run(mock LLM):管线活性验证通过;判官闸门 OFF,分数仅报告。"
 ```

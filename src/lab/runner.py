@@ -67,8 +67,9 @@ def run(brief: str | Path, config: dict[str, Any] | None = None, seed: int = 0,
     brief_path = Path(brief)
     if not brief_path.is_absolute():
         brief_path = (ROOT / brief).resolve()
-    cmd = [*_which_nsc(cwd), "run", "--brief", str(brief_path),
-           "--out", str(out_dir / "sw"), "--profile", str(config.get("profile", ""))]
+    cmd = [*_which_nsc(cwd), "run", str(brief_path), "--out", str(out_dir / "sw")]
+    if config.get("profile"):
+        cmd += ["--profile", str(config["profile"])]
     if config.get("rerank"):
         cmd.append("--rerank")
     if config.get("no_retrieval"):
@@ -109,10 +110,15 @@ def run(brief: str | Path, config: dict[str, Any] | None = None, seed: int = 0,
 
 
 def episode_text(artifact: Artifact) -> str:
-    """从产物抽可比文本(剧本正文):ir.json 的 episodes 渲染;抽不到则空串。"""
+    """从产物抽可比文本(剧本正文)。SW IR 是扁平结构(lines 顶层数组按 parent_id
+    关联),按 order 取全部台词行;兼容嵌套形态。"""
     if not artifact.ir_path:
         return ""
     ir = json.loads(Path(artifact.ir_path).read_text(encoding="utf-8"))
+    if ir.get("lines"):
+        return "\n".join(str(ln.get("text", "")).strip() for ln in
+                         sorted(ir["lines"], key=lambda l: l.get("order", 0))
+                         if str(ln.get("text", "")).strip())
     parts: list[str] = []
     for ep in ir.get("episodes", []):
         for sc in ep.get("scenes", []):
