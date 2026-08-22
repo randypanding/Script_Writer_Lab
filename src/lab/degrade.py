@@ -239,22 +239,26 @@ _PLACE = re.compile(r"在([一-龥]{2,6})(市|城|镇|村|山|岛)")
 
 
 def _d08_inject_contradiction(text: str, severity: float, seed: int) -> str:
+    """注入硬矛盾:被反驳的事实必须与矛盾句同窗可见(事实行之后紧邻插入)。
+
+    实证教训:随机位置/开头插入,或片段里根本没有可反驳事实时,
+    判官无从发现矛盾(考试灵敏度 0.43)。无窗内事实 → 原样返回(构建方跳过)。"""
     rng = random.Random(seed)
     lines = _lines(text)
-    contradictions: list[str] = []
-    m = _AGE.search(text)
-    if m:
-        contradictions.append(f"(其实他今年分明是{int(m.group(1)) + 20}岁,刚才不过是瞒着说的。)")
-    m2 = _TIME.search(text)
-    if m2:
-        contradictions.append(f"(实际上才过了半个{m2.group(2)},所谓{m2.group(0)}根本是记错了。)")
-    m3 = _PLACE.search(text)
-    if m3:
-        contradictions.append(f"(他们其实身在千里之外,所谓{m3.group(1)}只是说辞。)")
-    if not contradictions:
-        contradictions.append("(而这一切,其实发生在整整十年前的同一个地方。)")
-    stmt = rng.choice(contradictions)
-    idx = rng.randrange(len(lines) + 1)
+    candidates: list[tuple[int, str]] = []  # (插入位置=事实行之后, 矛盾句)
+    for pat, make in (
+        (_AGE, lambda m: f"(其实他今年分明是{int(m.group(1)) + 20}岁,刚才不过是瞒着说的。)"),
+        (_TIME, lambda m: f"(实际上才过了半个{m.group(2)},所谓{m.group(0)}根本是记错了。)"),
+        (_PLACE, lambda m: f"(他们其实身在千里之外,所谓{m.group(1)}只是说辞。)"),
+    ):
+        m = pat.search(text)
+        if m:
+            line_idx = text[: m.start()].count("\n")
+            candidates.append((line_idx + 1, make(m)))
+    if not candidates:
+        return text
+    idx, stmt = rng.choice(candidates)
+    idx = min(idx, len(lines))
     out = lines[:idx] + [stmt] + lines[idx:]
     return _join(out)
 

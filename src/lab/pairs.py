@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from collections import Counter
 from datetime import UTC, datetime
@@ -98,6 +99,53 @@ def _split_of(script_id: str) -> str:
     return "exam" if h < 20 else ("train" if h < 80 else "val")
 
 
+_META_LINE = re.compile(
+    r"(▲|【[^】]{1,12}】|剧\s*名|书名|类型|梗概|题材|作者|出品|集数|主演|简介|内容简介|文案|备注"
+    r"|人物表|人物介绍|人物小传|主要人物|原著|时长|基本信息|故事亮点|故事大纲|分集|目录)"
+    r"|^\s*\d+[-—.、]\d+、")   # 人物小传条目(形如 2-1、男主-徐龙)
+_SCENE_LINE = re.compile(r"^场景[::]")
+_DIALOGUE_LINE = re.compile(r"^[一-龥A-Za-z]{1,8}[::]\S")
+_CHAPTER_LINE = re.compile(r"^\s*(第[0-9零一二三四五六七八九十百千]+[集章节回卷部]|序章|楔子|番外|尾声)")
+_QUOTED_LINE = re.compile(r"[“「『].{2,}?[”」』]")  # 小说式引号对白
+
+
+def _narrative_excerpt(text: str, budget: int = 1200, min_chars: int = 100) -> str | None:
+    """跳过片头元数据(信息表/梗概/人物表/小传),截取正文片段。
+
+    锚点优先级:场次行/对白行 → 章节行(第N集/章、序章) → 非元数据长叙述句。
+    窗口内元数据行一律剔除。有效性(两种文体都要能过):
+    含场次/对白/引号对白行,或 ≥2 个 30 字以上叙述段;且全长 ≥ min_chars。
+    实证教训:语料头部常是制作信息表,直接取头 1200 字符会让"语料锚"变成
+    元数据残片,判官天然偏好生成物(自然度/对白轴灵敏度曾因此为 0)。"""
+    lines = text.splitlines()
+
+    def _anchor(pred) -> int | None:
+        for i, ln in enumerate(lines):
+            s = ln.strip()
+            if not s or _META_LINE.search(s):
+                continue
+            if pred(s):
+                return i
+        return None
+
+    start = _anchor(lambda s: bool(_SCENE_LINE.match(s) or _DIALOGUE_LINE.match(s)))
+    if start is None:
+        start = _anchor(lambda s: bool(_CHAPTER_LINE.match(s)))
+    if start is None:
+        start = _anchor(lambda s: len(s) >= 30)
+    if start is None:
+        return None
+    body = [ln for ln in lines[start:] if ln.strip() and not _META_LINE.search(ln.strip())]
+    has_talk = any(
+        _SCENE_LINE.match(s) or _DIALOGUE_LINE.match(s) or _QUOTED_LINE.search(s)
+        for ln in body if (s := ln.strip()))
+    long_paras = sum(1 for ln in body if len(ln.strip()) >= 30)
+    if not (has_talk or long_paras >= 2):
+        return None
+    out = "\n".join(body)[:budget]
+    return out if len(out) >= min_chars else None
+
+
 def build_corpus_degraded(
     store_dir: str | Path,
     *,
@@ -120,7 +168,9 @@ def build_corpus_degraded(
         if not text_file.exists():
             continue
         text = text_file.read_text(encoding="utf-8")
-        fragment = text[:1200]
+        fragment = _narrative_excerpt(text)
+        if fragment is None:
+            continue  # 元数据残片不造对
         for op_id, op in sorted(REGISTRY.items()):
             if op.mechanism == "llm_mid" and not llm_mid:
                 continue
@@ -204,7 +254,9 @@ def build_corpus_vs_gen(
             continue
         tf = store / f"text_{card['script_id'].split(':')[1]}.txt"
         if tf.exists():
-            corpus_frags.append((card["script_id"], tf.read_text(encoding="utf-8")[:1200]))
+            frag = _narrative_excerpt(tf.read_text(encoding="utf-8"))
+            if frag is not None:
+                corpus_frags.append((card["script_id"], frag))
         if len(corpus_frags) >= per_gen * max(1, len(gen_texts)):
             break
     if not corpus_frags:
