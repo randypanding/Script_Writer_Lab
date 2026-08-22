@@ -67,12 +67,31 @@ def test_healthy_free_skips_locked_and_retired(fake):
     assert wins[0] == 1   # 评论最少者优先
 
 
+def test_list_issues_paginates(monkeypatch):
+    """窗口池超过单页 100 上限时必须翻页(实证:自动补开已把池撑到 225)。"""
+    calls = []
+
+    def fake_http(method, path, body=None, timeout=30):
+        calls.append(path)
+        if "page=2" in path:
+            return [{"number": 101}]
+        return [{"number": i} for i in range(1, 101)]  # 第 1 页满 100
+
+    monkeypatch.setattr(swarm, "_http", fake_http)
+    issues = swarm.list_issues()
+    assert len(issues) == 101
+    assert any("page=2" in c for c in calls)
+
+
 def test_dispatch_prefix_and_work_mode(fake):
     swarm.dispatch(1, "比较两段文本,只答 A 或 B", work_mode=True)
     n, body = fake.posts[-1]
     assert n == 1
-    assert body["body"].startswith("@CodeBuddy")
+    assert body["body"].startswith("@") and "判官" in body["body"]  # 自定义 NPC 提及
     assert body["work_mode"] is True
+    # 已含 @ 提及的指令不重复加前缀
+    swarm.dispatch(1, "@CodeBuddy 直接提问")
+    assert fake.posts[-1][1]["body"] == "@CodeBuddy 直接提问"
 
 
 def test_run_task_full_loop_and_window_recycles(fake):

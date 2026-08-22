@@ -28,8 +28,10 @@ from typing import Any
 import lab.models  # noqa: F401  导入即加载 .env(load_dotenv 副作用)
 
 BASE = "https://api.cnb.cool"
-REPO = "Cloudbird-Software/talk"
+REPO = os.environ.get("CNB_SWARM_REPO", "Cloudbird-Software/swarm-pool")  # 专用池(1 核降配+判官人格)
 ISSUE_POOL = range(1, 101)  # 初始窗口池(列表接口异常时的兜底)
+# 自定义 NPC 角色(定义于 swarm-pool 仓 .cnb/settings.yml);异常时退回系统 @CodeBuddy
+MENTION = os.environ.get("CNB_NPC_MENTION", f"@{REPO}(判官)")
 
 MAX_HEALTHY_COMMENTS = 80   # 100 评论封顶,留余量退役
 MIN_FREE_POOL = 20          # 健康空闲窗口低于此数自动补开
@@ -55,8 +57,17 @@ def _http(method: str, path: str, body: dict | None = None, timeout: int = 30) -
     return json.loads(raw) if raw.strip() else {}
 
 
-def list_issues(page_size: int = 200) -> list[dict]:
-    return _http("GET", f"/-/issues?page_size={page_size}")
+def list_issues(page_size: int = 100, max_pages: int = 20) -> list[dict]:
+    """分页拉全(实证:page_size 上限 100,窗口池已超 100 个,单页会漏掉新窗口)。"""
+    out: list[dict] = []
+    for page in range(1, max_pages + 1):
+        batch = _http("GET", f"/-/issues?page_size={page_size}&page={page}")
+        if not batch:
+            break
+        out.extend(batch)
+        if len(batch) < page_size:
+            break
+    return out
 
 
 def list_comments(number: int, page_size: int = 100) -> list[dict]:
@@ -137,7 +148,7 @@ def is_free(number: int, comments: list[dict] | None = None) -> bool:
 
 def dispatch(number: int, instruction: str, work_mode: bool = False) -> None:
     """投递即锁定窗口。纯问答(投票/改写)用 work_mode=False,沙箱执行才开 True。"""
-    body = instruction if instruction.lstrip().startswith("@CodeBuddy") else f"@CodeBuddy {instruction}"
+    body = instruction if instruction.lstrip().startswith("@") else f"{MENTION} {instruction}"
     _http("POST", f"/-/issues/{number}/comments", {"body": body, "work_mode": bool(work_mode)})
 
 
