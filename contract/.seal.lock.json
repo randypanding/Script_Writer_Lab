@@ -1,19 +1,10 @@
 {
  "version": 1,
  "algo": "sha256",
- "files": [
-  {
-   "path": "judges.yaml",
-   "sha256": "fc87ba0f02420ba38da7a532347ea62ca3144bc85a88ee71823572d8a3292710"
-  },
-  {
-   "path": "objective.yaml",
-   "sha256": "d603ecfc15cfc9745a72f7fe40e66e334ec76ff9c2aaa28fb31a3fa7b5c58c4c"
-  },
-  {
-   "path": "promotion.yaml",
-   "sha256": "cfa808b72b5ae6d0500fcac48841d2e34800eadbd002da8a9c929d700fb5a9ee"
-  }
- ],
- "hmac": "5a9350e2363f88641554de36bfcad0e0b2d37e43fc63c832f738ad80eef520c3"
+ "files": {
+  "judges.yaml": "fc87ba0f02420ba38da7a532347ea62ca3144bc85a88ee71823572d8a3292710",
+  "objective.yaml": "d603ecfc15cfc9745a72f7fe40e66e334ec76ff9c2aaa28fb31a3fa7b5c58c4c",
+  "promotion.yaml": "cfa808b72b5ae6d0500fcac48841d2e34800eadbd002da8a9c929d700fb5a9ee"
+ },
+ "hmac": "215ef6d21dbe6a23959340e569e82da5b27a4b3345c7d943dd47dc128b085786"
 }

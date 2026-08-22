@@ -178,7 +178,7 @@ def stats_card(card: ScriptCard) -> dict[str, Any]:
         "sent_len_mean": round(sent_len_mean, 4),
         "sent_len_cv": round(sent_len_cv, 6),
         "para_len_cv": round(para_len_cv, 6),
-        "hook_positions": [round(p, 6) for p in hook_positions],
+        "hook_positions": hook_positions,
         "ep_char_counts": ep_char_counts,
         "meta": {"claimed_genre": "未声明", "claimed_platform": "未声明", **card.meta,
                  "source_file": card.source_file},

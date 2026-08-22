@@ -16,7 +16,6 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 LOCK_NAME = ".seal.lock.json"
 
@@ -26,23 +25,24 @@ def _file_hash(p: Path) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _manifest(dir_: Path) -> list[dict[str, Any]]:
-    files = []
+def _manifest(dir_: Path) -> dict[str, str]:
+    """{relpath: sha256},relpath 按 POSIX 排序——确定性,跨平台可比。"""
+    files = {}
     for p in sorted(dir_.rglob("*")):
         if not p.is_file() or p.name == LOCK_NAME:
             continue
-        files.append({"path": p.relative_to(dir_).as_posix(), "sha256": _file_hash(p)})
+        files[p.relative_to(dir_).as_posix()] = _file_hash(p)
     return files
 
 
-def _canonical(manifest: list[dict[str, Any]]) -> bytes:
+def _canonical(manifest: dict[str, str]) -> bytes:
     return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 @dataclass
 class LockFile:
     dir: Path
-    manifest: list[dict[str, Any]]
+    files: dict[str, str]
     hmac: str
     key: str | None = None  # 仅内存;不落盘
 
@@ -50,34 +50,47 @@ class LockFile:
     def load(cls, dir_: str | Path) -> LockFile:
         d = Path(dir_)
         data = json.loads((d / LOCK_NAME).read_text(encoding="utf-8"))
-        return cls(dir=d, manifest=data["files"], hmac=data["hmac"])
+        files = data["files"]
+        # 向后兼容:list of {path, sha256}(旧格式)→ dict
+        if isinstance(files, list):
+            files = {item["path"]: item["sha256"] for item in files}
+        return cls(dir=d, files=files, hmac=data["hmac"])
 
     def to_json(self) -> str:
-        return json.dumps({"version": 1, "algo": "sha256", "files": self.manifest,
+        return json.dumps({"version": 1, "algo": "sha256", "files": self.files,
                            "hmac": self.hmac}, ensure_ascii=False, indent=1)
 
 
 def seal_dir(dir_: str | Path, key: str) -> LockFile:
     d = Path(dir_)
-    manifest = _manifest(d)
-    mac = hmac_mod.new(key.encode("utf-8"), _canonical(manifest), hashlib.sha256).hexdigest()
-    lock = LockFile(dir=d, manifest=manifest, hmac=mac, key=key)
+    files = _manifest(d)
+    mac = hmac_mod.new(key.encode("utf-8"), _canonical(files), hashlib.sha256).hexdigest()
+    lock = LockFile(dir=d, files=files, hmac=mac, key=key)
     (d / LOCK_NAME).write_text(lock.to_json() + "\n", encoding="utf-8", newline="\n")
     return lock
 
 
 def verify(dir_: str | Path, lock: LockFile) -> bool:
+    """校验目录与锁文件一致。
+
+    读取锁文件 → 先验其 HMAC(锁文件自身是否被篡改,需 key) → 再比对待验目录
+    的当前清单与锁文件清单。两步都过才返回 True。
+    """
     d = Path(dir_)
-    if not (d / LOCK_NAME).exists():
+    lock_path = d / LOCK_NAME
+    if not lock_path.exists():
         return False
-    current = _manifest(d)
-    if current != lock.manifest:
-        return False
+    data = json.loads(lock_path.read_text(encoding="utf-8"))
+    locked_files = data["files"]
+    if isinstance(locked_files, list):
+        locked_files = {item["path"]: item["sha256"] for item in locked_files}
+    # 防线 1:锁文件自身完整性(HMAC)。需 key;无 key 时跳过(由 git diff 可见性兜底)
     if lock.key is not None:
-        expect = hmac_mod.new(lock.key.encode("utf-8"), _canonical(current), hashlib.sha256).hexdigest()
-        if not hmac_mod.compare_digest(expect, lock.hmac):
+        expect = hmac_mod.new(lock.key.encode("utf-8"), _canonical(locked_files), hashlib.sha256).hexdigest()
+        if not hmac_mod.compare_digest(expect, data["hmac"]):
             return False
-    return True
+    # 防线 2:当前目录清单 vs 锁文件清单
+    return _manifest(d) == locked_files
 
 
 def verify_committed(dir_: str | Path, key: str | None = None) -> bool:
@@ -106,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"缺少 {args.key_env}", file=sys.stderr)
             return 2
         lock = seal_dir(args.dir, key)
-        print(f"sealed {args.dir}: {len(lock.manifest)} files, hmac={lock.hmac[:12]}…")
+        print(f"sealed {args.dir}: {len(lock.files)} files, hmac={lock.hmac[:12]}…")
         return 0
     if args.cmd == "verify":
         ok = verify_committed(args.dir, key or None)

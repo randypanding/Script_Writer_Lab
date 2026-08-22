@@ -8,8 +8,9 @@ out = "out"
 
 [models]
 # 槽位 -> 模型。改本文件不需要 ADR;改 contract/judges.yaml 的家族约束需要。
-generation = { model = "qwen-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
-generation_strong = { model = "qwen-max", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
-judge_dev = { model = "qwen-plus", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
-judge_sealed = { model = "glm-4.6", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
-synthesis = { model = "qwen-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+# 百炼接入点(ali-model.txt);模型按配额实测选定:glm-5/deepseek-r1/qwen3-coder-plus/qwen3.6-flash 可用
+generation = { model = "qwen3-coder-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+generation_strong = { model = "qwen3.6-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+judge_dev = { model = "deepseek-r1", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
+judge_sealed = { model = "glm-5", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
+synthesis = { model = "qwen3-coder-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
