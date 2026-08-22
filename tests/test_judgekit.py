@@ -135,6 +135,42 @@ def test_swarm_slot_goes_straight_to_vote(monkeypatch):
     assert v.score_a == pytest.approx(1.0)
 
 
+def test_run_exam_packed_aggregates(monkeypatch):
+    """打包考试:跨对打包投票的聚合正确性(灵敏度/位置偏差/样本量门限)。"""
+    import re as _re
+
+    import lab.judgekit as jk
+    from lab import swarm
+    from lab.pairs import build_pair
+
+    pairs = [
+        build_pair(axis="prose_craft", a_text=f"……【甲】原版文本{i}……", b_text=f"……【乙】退化文本{i}……",
+                   label="a_win", construction={"kind": "corpus_degraded", "op_id": "D05_inject_slop",
+                                                "severity": 1,
+                                                "source_script_id": f"scr:pk{i:024d}"},
+                   split="exam")
+        for i in range(4)
+    ]
+
+    def fake_batch(instructions, **kw):
+        replies = []
+        for ins in instructions:
+            letters = []
+            for gi, g in enumerate(_re.split(r"第\d+组:", ins)[1:], 1):
+                first_seg = g.split("第二段:")[0]
+                letters.append(f"{gi}:" + ("A" if "【甲】" in first_seg else "B"))
+            replies.append(" ".join(letters))
+        return replies
+
+    monkeypatch.setattr(swarm, "run_batch", fake_batch)
+    report = jk.run_exam_packed({"model_slot": "judge_dev_swarm", "k": 2}, pairs, pack_size=3)
+    ax = report["axes"]["prose_craft"]
+    assert ax["sensitivity"] == 1.0      # 所有投票判对(原版胜)
+    assert ax["position_bias"] == 0.0    # 两方向结论一致
+    assert ax["pass"] is False           # n=4 < min_exam_pairs_per_axis=100
+    assert report["engine"] == "k_sample_vote_packed"
+
+
 def test_run_exam_mock_report(tmp_path):
     from lab.degrade import REGISTRY
     from lab.pairs import build_pair

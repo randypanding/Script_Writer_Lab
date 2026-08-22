@@ -86,16 +86,22 @@ def load_criteria(axis: str) -> dict[str, str]:
     return out
 
 
+_AXIS_HINTS = {
+    "naturalness": "自然度:对白像真人说话吗", "hook_strength": "钩子强度:开头抓人/结尾留钩吗",
+    "placement_integration": "植入融合:商业信息融进剧情吗", "transportation": "代入感:信息给送顺畅吗",
+    "producibility": "可拍性:制作元素在预算内吗", "prose_craft": "文笔:句法节奏与用词质量",
+    "l0_structure": "结构合规:视角/伏笔承接/beat 顺序", "l0_fact": "事实一致性:无硬矛盾",
+    "l0_brand": "品牌合规:必覆盖卖点齐全", "l0_dialogue": "对白占比:对白驱动叙事",
+}
+
+
+def _axis_hint(axis: str) -> str:
+    return _AXIS_HINTS.get(axis, axis)
+
+
 def axis_problem(axis: str) -> str:
     """compare 的 problem 槽:轴定义 + 判分对象说明(不含任何答案信息)。"""
-    header = {
-        "naturalness": "自然度:对白像真人说话吗", "hook_strength": "钩子强度:开头抓人/结尾留钩吗",
-        "placement_integration": "植入融合:商业信息融进剧情吗", "transportation": "代入感:信息给送顺畅吗",
-        "producibility": "可拍性:制作元素在预算内吗", "prose_craft": "文笔:句法节奏与用词质量",
-        "l0_structure": "结构合规:视角/伏笔承接/beat 顺序", "l0_fact": "事实一致性:无硬矛盾",
-        "l0_brand": "品牌合规:必覆盖卖点齐全", "l0_dialogue": "对白占比:对白驱动叙事",
-    }
-    return (f"你是短剧质量判官。比较两段短剧文本,轴:「{axis}」({header.get(axis, axis)})。"
+    return (f"你是短剧质量判官。比较两段短剧文本,轴:「{axis}」({_axis_hint(axis)})。"
             "按信号级子问题分别评估两段,再给 1-20 刻度的细粒度分。")
 
 
@@ -203,6 +209,77 @@ def select_best(problem: str, candidates: list[str], axis: str, judge_cfg: dict[
 def _gate_cfg() -> dict[str, Any]:
     path = ROOT / "contract" / "judges.yaml"
     return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
+                    workers: int = 16, pack_size: int = 5) -> dict[str, Any]:
+    """CNB 打包考试(backend=cnb 槽位):投票项跨对打包,一条指令带 pack_size 组对比。
+
+    与 run_exam 的差异:不经 llm_verifier;不做传递性检查(标 null,门限允许);
+    跨族一致率待 sealed 判官恢复后补。灵敏度/block 灵敏度/位置偏差三门限全保留。
+    评论经济(评论进入 NPC 上下文)+ 并发闸/窗口生命周期由 lab.swarm v2 兜底。
+    """
+    from lab import swarm
+
+    gates = _gate_cfg()["exam"]
+    k = int(judge_cfg.get("k", 5))
+    by_axis: dict[str, list[dict[str, Any]]] = {}
+    for p in exam_pairs:
+        by_axis.setdefault(p["axis"], []).append(p)
+
+    report: dict[str, Any] = {"axes": {}, "gates": gates, "judge": judge_cfg.get("model_slot"),
+                              "engine": "k_sample_vote_packed", "transitivity_skipped": True}
+    for axis, pairs in sorted(by_axis.items()):
+        # 每对 × 两方向 × k 次 = 独立投票项;方向 1 即位置交换
+        items: list[tuple[int, int, str, str]] = []
+        for i, p in enumerate(pairs):
+            for d in (0, 1):
+                a, b = (p["a_text"], p["b_text"]) if d == 0 else (p["b_text"], p["a_text"])
+                for _ in range(k):
+                    items.append((i, d, a, b))
+        chunks = [items[i:i + pack_size] for i in range(0, len(items), pack_size)]
+        instructions = [
+            swarm.pack_vote_instruction(axis, _axis_hint(axis), [(a, b) for _, _, a, b in chunk])
+            for chunk in chunks
+        ]
+        replies = swarm.run_batch(instructions, workers=workers)
+        votes: dict[tuple[int, int], list[str]] = {}
+        for chunk, reply in zip(chunks, replies, strict=True):
+            letters = swarm.parse_packed_votes(reply, len(chunk))
+            for (i, d, _, _), letter in zip(chunk, letters, strict=True):
+                votes.setdefault((i, d), []).append(letter)
+
+        n = len(pairs)
+        correct = flips = 0
+        block_pairs = [p for p in pairs if p["construction"].get("op_id") in BLOCK_OPS]
+        block_correct = 0
+        for i, p in enumerate(pairs):
+            v0, v1 = votes.get((i, 0), []), votes.get((i, 1), [])
+            rate0 = sum(x == "A" for x in v0) / len(v0) if v0 else 0.5  # 方向0:a 在第一段
+            rate1 = sum(x == "B" for x in v1) / len(v1) if v1 else 0.5  # 方向1:a 在第二段
+            ok = (rate0 + rate1) / 2 > 0.5
+            correct += ok
+            if p["construction"].get("op_id") in BLOCK_OPS:
+                block_correct += ok
+            flips += (rate0 > 0.5) != (rate1 > 0.5)  # 两方向结论不一致 = 位置偏差事件
+        sensitivity = correct / n if n else 0.0
+        block_sensitivity = (block_correct / len(block_pairs)) if block_pairs else None
+        position_bias = flips / n if n else 1.0
+        report["axes"][axis] = {
+            "n_pairs": n,
+            "sensitivity": round(sensitivity, 4),
+            "block_sensitivity": round(block_sensitivity, 4) if block_sensitivity is not None else None,
+            "position_bias": round(position_bias, 4),
+            "transitivity": None,
+            "pass": (
+                n >= gates["min_exam_pairs_per_axis"]
+                and sensitivity >= gates["degradation_sensitivity"]
+                and (block_sensitivity is None or block_sensitivity >= gates["block_defect_sensitivity"])
+                and position_bias <= gates["position_bias"]
+            ),
+        }
+    report["pass"] = bool(report["axes"]) and all(a["pass"] for a in report["axes"].values())
+    return report
 
 
 def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
@@ -347,7 +424,16 @@ def main(argv: list[str] | None = None) -> int:
     cfg = {"model_slot": args.slot, "k": args.k, "workers": args.workers}
     other = ({"model_slot": args.sealed_slot, "k": args.k, "workers": args.workers}
              if args.sealed_slot else None)
-    report = run_exam(cfg, pairs, other, workers=args.workers)
+    from lab import models as _models
+
+    backend = _models._load_lab_toml()["models"][args.slot].get("backend")
+    if backend == "cnb":
+        # CNB 集群无 OpenAI 端点:打包投票考试(跨族一致率待 sealed 恢复后补)
+        if args.sealed_slot:
+            print("警告:打包模式暂不支持 sealed 跨族,已忽略 --sealed-slot", file=sys.stderr)
+        report = run_exam_packed(cfg, pairs, workers=args.workers)
+    else:
+        report = run_exam(cfg, pairs, other, workers=args.workers)
     render_exam_md(report, args.out)
     print(json.dumps(report, ensure_ascii=False)[:2000])
     return 0 if report.get("pass") else 1

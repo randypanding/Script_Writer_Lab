@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 2
+date: "2026-08-23"
+hypothesis: "战役起点记录(非优化轮):免费路径(CNB swarm,随机后端)承载全部生成与评测;判官闸门待打包考试裁决"
+surface: op.prompt_instructions
+change: "无变更。起始状态:champion=种子 harness(mock 基线分 0.2033,sealed_score null);dev 判官=k_sample_vote_packed;sealed 判官待付费 key;偏好对 35282 条(35282=7216 exam+20928 train+7138 val)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "约束实测:CNB 沙箱并发硬上限 64(本侧闸 48)、单 issue 100 评论封顶后不再回复、评论进入 NPC 上下文故打包投票(5 组/条);昨日超限锁死 35 窗口,已建退役(≥80 评论)/补开机制。后续轮次胜负以 dev 判官对 champion 的成对胜率为准。"
+```
+```yaml
 round: 0
 date: "模板示例(非真实实验)"
 hypothesis: "示例:提高 p5 rerank n=3 应提升 hook_strength,因为面板 3 显示集末钩子弱"
