@@ -128,15 +128,17 @@ def _d01_shuffle_beats(text: str, severity: float, seed: int) -> str:
         seg = out[a:b]
         scene_idx = [i for i, ln in enumerate(seg) if ln.strip().startswith("场景")]
         if len(scene_idx) >= 2:
-            blocks = _split_by(seg, scene_idx)
+            # anchor the head (e.g. episode title) before the first scene;
+            # shuffle only the scene-delimited blocks so no content is dropped
+            head, blocks = seg[:scene_idx[0]], _split_by(seg, scene_idx)
         else:
-            blocks = _split_paragraphs(seg)
+            head, blocks = [], _split_paragraphs(seg)
         if len(blocks) < 2:
             continue
         for _ in range(min(swaps, len(blocks) - 1)):
             i, j = sorted(rng.sample(range(len(blocks)), 2))
             blocks[i], blocks[j] = blocks[j], blocks[i]
-        out[a:b] = [ln for blk in blocks for ln in blk]
+        out[a:b] = head + [ln for blk in blocks for ln in blk]
     return "\n".join(out) if out != lines else _join(_fallback_delete_longest(lines))
 
 
