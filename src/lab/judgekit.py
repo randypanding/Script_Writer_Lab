@@ -238,8 +238,10 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
                 for _ in range(k):
                     items.append((i, d, a, b))
         chunks = [items[i:i + pack_size] for i in range(0, len(items), pack_size)]
+        signals = list(load_criteria(axis).keys())  # 信号级分解:弱后端灵敏度来源
         instructions = [
-            swarm.pack_vote_instruction(axis, _axis_hint(axis), [(a, b) for _, _, a, b in chunk])
+            swarm.pack_vote_instruction(axis, _axis_hint(axis), [(a, b) for _, _, a, b in chunk],
+                                        signals=signals)
             for chunk in chunks
         ]
         replies = swarm.run_batch(instructions, workers=workers)

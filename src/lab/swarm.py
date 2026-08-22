@@ -188,12 +188,19 @@ def parse_vote(reply: str) -> str:
 
 
 def pack_vote_instruction(axis: str, axis_hint: str, items: list[tuple[str, str]],
-                          text_budget: int = 1200) -> str:
+                          text_budget: int = 1200,
+                          signals: list[str] | None = None) -> str:
     """items = [(text_a, text_b), ...] 同轴的多组独立对比 → 一条指令。
 
-    严格输出格式要求 + 文本截断,控制评论长度与上下文污染。"""
+    严格输出格式要求 + 文本截断,控制评论长度与上下文污染。
+    signals = 该轴的信号级子问题(criteria/<axis>.md),分解判据可显著提升
+    弱后端灵敏度(LLM-as-a-Verifier 的 criteria decomposition 结论)。"""
     parts = [
         f"你是短剧质量判官。下面有 {len(items)} 组互不相关的文本对比,评判轴:「{axis}」({axis_hint})。",
+    ]
+    if signals:
+        parts.append("评判时逐条关注以下信号:" + ";".join(s[:60] for s in signals[:6]))
+    parts += [
         "对每组独立判断哪一段在该轴上更好;逐组只回一个大写字母,格式严格为 1:A 2:B 3:A …,",
         "不要解释,不要输出任何其他内容。",
     ]
