@@ -119,7 +119,14 @@ def score_pair(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any]) -
         client = judge_cfg["client"]
         model = judge_cfg.get("model") or "judge"
     else:
-        model, client = make_client(judge_cfg["model_slot"], judge_cfg.get("db_path"))
+        slot = judge_cfg["model_slot"]
+        from lab import models as _models
+
+        if _models._load_lab_toml()["models"][slot].get("backend") == "cnb":
+            # CNB 沙箱集群没有 OpenAI 端点,llm_verifier 无从接入——直连投票降级路径
+            return _k_sample_vote(a_text, b_text, axis, judge_cfg,
+                                  reason="backend=cnb: 免费沙箱集群,无 logprobs 端点")
+        model, client = make_client(slot, judge_cfg.get("db_path"))
     criteria = judge_cfg.get("criteria") or load_criteria(axis)
     problem = judge_cfg.get("problem") or axis_problem(axis)
     try:
@@ -154,11 +161,14 @@ def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any
     db = judge_cfg.get("db_path")
 
     def _one_vote(first: str, second: str, first_is_a: bool) -> bool:
-        prompt = (f"比较两段短剧文本在轴「{axis}」上的质量。只回答一个字母:更好的是第一段(A)"
-                  f"还是第二段(B)?\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}\n\n只答 A 或 B。")
+        prompt = (f"比较两段短剧文本在轴「{axis}」上的质量。更好的是第一段(A)还是第二段(B)?"
+                  f"只回复一个大写字母 A 或 B,不要任何其他内容。"
+                  f"\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}")
         ans = route(judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote",
                     db_path=db, temperature=1.0)
-        return ans.strip().upper().startswith("A") == first_is_a
+        from lab.swarm import parse_vote  # 剥 @提及 前缀后取首个 A/B(NPC 回复有前缀)
+
+        return parse_vote(ans) == ("A" if first_is_a else "B")
 
     tasks = [(a_text, b_text, True), (b_text, a_text, False)] * k
     workers = min(len(tasks), int(judge_cfg.get("workers", 10)))

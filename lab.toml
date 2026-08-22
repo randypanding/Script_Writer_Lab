@@ -14,3 +14,6 @@ generation_strong = { model = "qwen3.6-flash", api_key_env = "GEN_API_KEY", api_
 judge_dev = { model = "deepseek-r1", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
 judge_sealed = { model = "glm-5", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
 synthesis = { model = "qwen3-coder-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+# CNB 免费沙箱集群(随机后端模型,零成本):dev 判官投票/合成改写用;sealed 永不用它
+judge_dev_swarm = { backend = "cnb", model = "codebuddy-random" }
+synthesis_swarm = { backend = "cnb", model = "codebuddy-random" }

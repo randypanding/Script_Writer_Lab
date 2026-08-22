@@ -119,6 +119,22 @@ def test_openai_api_error_also_falls_back(monkeypatch):
     assert v.score_a == pytest.approx(0.0)  # 退化版全票
 
 
+def test_swarm_slot_goes_straight_to_vote(monkeypatch):
+    """backend=cnb 的槽位不得触碰 llm_verifier(无端点),直连投票降级路径。"""
+    from lab import models
+    monkeypatch.setattr(models, "_load_lab_toml", lambda: {
+        "models": {"judge_dev_swarm": {"backend": "cnb", "model": "codebuddy-random"}},
+        "paths": {"transcripts": ":memory:"},
+    })
+    monkeypatch.setattr(models, "route", _directional_vote(orig_wins=True), raising=True)
+    import lab.judgekit as jk
+    v = jk.score_pair("原版片段", "退化片段", AXIS,
+                      {"model_slot": "judge_dev_swarm", "k": 2})
+    assert v.engine == "k_sample_vote"
+    assert "cnb" in v.fallback_reason
+    assert v.score_a == pytest.approx(1.0)
+
+
 def test_run_exam_mock_report(tmp_path):
     from lab.degrade import REGISTRY
     from lab.pairs import build_pair

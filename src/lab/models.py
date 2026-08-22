@@ -76,7 +76,21 @@ def route(
     db_path: str | Path | None = None,
     client: Any | None = None,
 ) -> str:
-    """一次 LLM 调用:路由槽位 + transcript 落库。client 参数供测试注入 mock。"""
+    """一次 LLM 调用:路由槽位 + transcript 落库。client 参数供测试注入 mock。
+
+    槽位 cfg 带 backend = "cnb" 时走 CNB 免费沙箱集群(lab.swarm),不调 OpenAI 兼容端点。
+    """
+    cfg = _load_lab_toml()["models"][slot]
+    if client is None and cfg.get("backend") == "cnb":
+        from lab.swarm import run_task  # 延迟导入:swarm 反向 import 本模块
+
+        text = run_task((f"{system}\n\n" if system else "") + prompt, work_mode=False)
+        _write_transcript(
+            _db_path(db_path),
+            (time.time(), caller, str(cfg.get("model", "codebuddy")), prompt, text,
+             0, 0, 0.0, experiment_id),
+        )
+        return text
     model, real_client = _resolve_client(slot) if client is None else (None, None)
     if client is not None:
         model = getattr(client, "model_name", slot)
