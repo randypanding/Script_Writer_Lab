@@ -70,22 +70,53 @@ def test_score_pair_position_swap_average():
     assert sum(1 for t in c.calls if t[0] == "analysis") >= 2  # 两次有向调用
 
 
+def _directional_vote(orig_wins: bool):
+    """按 prompt 里谁在第一段来投票,与并发顺序无关(并行投票下的确定性)。"""
+    def _vote(slot, prompt, **kw):
+        first_is_orig = "第一段:\n原版片段" in prompt
+        return "A" if first_is_orig == orig_wins else "B"
+    return _vote
+
+
 def test_k_sample_vote_fallback(monkeypatch):
     class ExplodingClient:
         chat = SimpleNamespace(completions=SimpleNamespace(
             create=lambda **kw: (_ for _ in ()).throw(RuntimeError("logprobs not supported"))))
 
     from lab import models
-    votes = iter(["A", "B"] * 3)  # 6 次(2 方向 × k=3):(a,b) 票 A、(b,a) 票 B
-
-    monkeypatch.setattr(models, "route", lambda *a, **k: next(votes), raising=True)
+    monkeypatch.setattr(models, "route", _directional_vote(orig_wins=True), raising=True)
     import lab.judgekit as jk
     v = jk.score_pair("原版片段", "退化片段", AXIS,
                       {"client": ExplodingClient(), "model": "m", "k": 3,
                        "model_slot": "judge_dev"})
     assert v.engine == "k_sample_vote"
     assert v.fallback_reason
-    assert v.score_a == pytest.approx(1.0)  # 每轮 (a,b) 票 A、(b,a) 票 B → 原版 6/6
+    assert v.score_a == pytest.approx(1.0)  # 原版全票
+
+
+def test_openai_api_error_also_falls_back(monkeypatch):
+    """回归:真实端点抛的是 openai.APIStatusError 子类(如 BadRequestError),
+    不是 RuntimeError——之前漏捕导致探针直接崩。"""
+    import httpx
+    import openai
+
+    def _raise(**kw):
+        req = httpx.Request("POST", "http://test/v1/chat/completions")
+        raise openai.BadRequestError("logprobs not supported",
+                                     response=httpx.Response(400, request=req), body=None)
+
+    class RealishClient:
+        chat = SimpleNamespace(completions=SimpleNamespace(create=_raise))
+
+    from lab import models
+    monkeypatch.setattr(models, "route", _directional_vote(orig_wins=False), raising=True)
+    import lab.judgekit as jk
+    v = jk.score_pair("原版片段", "退化片段", AXIS,
+                      {"client": RealishClient(), "model": "m", "k": 3,
+                       "model_slot": "judge_dev"})
+    assert v.engine == "k_sample_vote"
+    assert "logprobs" in v.fallback_reason
+    assert v.score_a == pytest.approx(0.0)  # 退化版全票
 
 
 def test_run_exam_mock_report(tmp_path):

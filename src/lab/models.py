@@ -15,6 +15,12 @@ from typing import Any
 ROOT = Path(__file__).parents[2]
 LAB_TOML = ROOT / "lab.toml"
 
+# .env 是密钥的唯一存放点(gitignored)。模块导入即加载;
+# load_dotenv 默认不覆盖已存在的环境变量——显式 export 优先。
+from dotenv import load_dotenv
+
+load_dotenv(ROOT / ".env")
+
 
 def _load_lab_toml() -> dict[str, Any]:
     with LAB_TOML.open("rb") as f:

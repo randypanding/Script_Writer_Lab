@@ -16,11 +16,13 @@ import json
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+from openai import APIError
 
 from lab.models import ROOT, _db_path, _resolve_client, _write_transcript
 
@@ -133,33 +135,38 @@ def score_pair(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any]) -
         score_b = (rb1 + ra2) / 2
         return Verdict(axis, score_a, score_b, k, "llm_verifier.compare",
                        n_api_calls=2 * k * max(1, len(criteria)))
-    except (RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+    except (RuntimeError, OSError, ValueError, KeyError, TypeError, APIError) as exc:
         # 端点不支持 logprobs / 客户端报错 → 降级路径(contract/judges.yaml::scoring_fallback)
+        # 注意:真实端点抛的是 openai.APIStatusError 子类(BadRequestError 等),
+        # 不是 RuntimeError——APIError 必须在捕获面里(探针实证,dashscope 400)。
         return _k_sample_vote(a_text, b_text, axis, judge_cfg, reason=str(exc)[:200])
 
 
 def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any],
                    reason: str) -> Verdict:
-    """降级打分:k 次多数投票(双向),无 logprobs 也能出 [0,1] 相对分。"""
+    """降级打分:k 次多数投票(双向),无 logprobs 也能出 [0,1] 相对分。
+
+    2k 次投票相互独立,并行发出(推理模型单次 ~18s,串行在真实端点上不可用——探针实证)。
+    聚合与顺序无关,并行不改变结果。"""
     from lab.models import route
 
     k = int(judge_cfg.get("k", 5))
     db = judge_cfg.get("db_path")
-    votes_a = 0
-    n = 0
-    for i in range(k):
-        for first, second, first_is_a in ((a_text, b_text, True), (b_text, a_text, False)):
-            prompt = (f"比较两段短剧文本在轴「{axis}」上的质量。只回答一个字母:更好的是第一段(A)"
-                      f"还是第二段(B)?\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}\n\n只答 A 或 B。")
-            ans = route(judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote",
-                        db_path=db, temperature=1.0)
-            n += 1
-            pick_first = ans.strip().upper().startswith("A")
-            if pick_first == first_is_a:
-                votes_a += 1
+
+    def _one_vote(first: str, second: str, first_is_a: bool) -> bool:
+        prompt = (f"比较两段短剧文本在轴「{axis}」上的质量。只回答一个字母:更好的是第一段(A)"
+                  f"还是第二段(B)?\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}\n\n只答 A 或 B。")
+        ans = route(judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote",
+                    db_path=db, temperature=1.0)
+        return ans.strip().upper().startswith("A") == first_is_a
+
+    tasks = [(a_text, b_text, True), (b_text, a_text, False)] * k
+    workers = min(len(tasks), int(judge_cfg.get("workers", 10)))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        votes_a = sum(ex.map(lambda t: _one_vote(*t), tasks))
     total = 2 * k
     return Verdict(axis, votes_a / total, 1 - votes_a / total, k, "k_sample_vote",
-                   n_api_calls=n, fallback_reason=reason)
+                   n_api_calls=total, fallback_reason=reason)
 
 
 def select_best(problem: str, candidates: list[str], axis: str, judge_cfg: dict[str, Any],
@@ -189,35 +196,40 @@ def _gate_cfg() -> dict[str, Any]:
 
 
 def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
-             other_judge_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+             other_judge_cfg: dict[str, Any] | None = None,
+             workers: int = 8) -> dict[str, Any]:
     """对照 contract/judges.yaml::exam 五门限出 pass/fail。
 
     exam_pairs 来自 lab.pairs(split=exam,label 由构造保证)。
     每轴:灵敏度(原版>退化版)/ block 类灵敏度 / 位置偏差(交换后判罚翻转率)/
     传递性(同脚本同算子两档强度的三元组)/ 样本量;双判官时算跨族一致率。
+    成对评估相互独立,按 workers 并行(真实端点串行不可用——探针实证 ~18s/票)。
     """
     gates = _gate_cfg()["exam"]
     by_axis: dict[str, list[dict[str, Any]]] = {}
     for p in exam_pairs:
         by_axis.setdefault(p["axis"], []).append(p)
 
+    def _eval_pair(axis: str, p: dict[str, Any]):
+        v1 = score_pair(p["a_text"], p["b_text"], axis, judge_cfg)
+        v2 = score_pair(p["b_text"], p["a_text"], axis, judge_cfg)  # 位置交换
+        return axis, p, v1, v2
+
+    tasks = [(axis, p) for axis, pairs in by_axis.items() for p in pairs]
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+        evaluated = list(ex.map(lambda t: _eval_pair(*t), tasks))
+
     report: dict[str, Any] = {"axes": {}, "gates": gates, "judge": judge_cfg.get("model_slot")}
     for axis, pairs in sorted(by_axis.items()):
         n = len(pairs)
         correct = flips = 0
-        block_pairs = [p for p in pairs if p["construction"].get("op_id", "").startswith(
-            tuple(op.split("_")[0] for op in BLOCK_OPS))]
+        block_pairs = [p for p in pairs if p["construction"].get("op_id", "") in BLOCK_OPS]
         block_correct = 0
-        verdicts: list[tuple[float, float]] = []
-        for p in pairs:
-            a, b = p["a_text"], p["b_text"]
-            v1 = score_pair(a, b, axis, judge_cfg)
-            verdicts.append((v1.score_a, v1.score_b))
+        for ax, p, v1, v2 in (r for r in evaluated if r[0] == axis):
             ok = v1.score_a > v1.score_b
             correct += ok
             if p["construction"].get("op_id") in BLOCK_OPS:
                 block_correct += ok
-            v2 = score_pair(b, a, axis, judge_cfg)  # 位置交换
             flips += (v2.score_a > v2.score_b)  # 交换后退化版胜 = 位置偏差事件
         sensitivity = correct / n if n else 0.0
         block_sensitivity = (block_correct / len(block_pairs)) if block_pairs else None
@@ -240,14 +252,14 @@ def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
         report["axes"][axis] = axis_report
 
     if other_judge_cfg is not None:
-        agree = total = 0
-        for axis, pairs in sorted(by_axis.items()):
-            for p in pairs:
-                v1 = score_pair(p["a_text"], p["b_text"], axis, judge_cfg)
-                v2 = score_pair(p["a_text"], p["b_text"], axis, other_judge_cfg)
-                total += 1
-                agree += ((v1.score_a > v1.score_b) == (v2.score_a > v2.score_b))
-        report["cross_family_agreement"] = round(agree / total, 4) if total else None
+        def _cross(axis: str, p: dict[str, Any]) -> bool:
+            v1 = score_pair(p["a_text"], p["b_text"], axis, judge_cfg)
+            v2 = score_pair(p["a_text"], p["b_text"], axis, other_judge_cfg)
+            return (v1.score_a > v1.score_b) == (v2.score_a > v2.score_b)
+
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+            outs = list(ex.map(lambda t: _cross(*t), tasks))
+        report["cross_family_agreement"] = round(sum(outs) / len(outs), 4) if outs else None
         report["pass"] = (all(a["pass"] for a in report["axes"].values())
                           and report["cross_family_agreement"] is not None
                           and report["cross_family_agreement"] >= gates["cross_family_agreement"])
@@ -312,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
     ex.add_argument("--slot", default="judge_dev")
     ex.add_argument("--sealed-slot", default=None, help="同时跑 sealed 判官算跨族一致率")
     ex.add_argument("--k", type=int, default=5)
+    ex.add_argument("--workers", type=int, default=8, help="成对评估并发数(真实端点串行不可用)")
     ex.add_argument("--out", default="dashboards/judge_exam.md")
     ex.add_argument("--limit", type=int, default=0, help="每轴截断(冒烟用;正式考试须 0)")
     args = ap.parse_args(argv)
@@ -321,9 +334,10 @@ def main(argv: list[str] | None = None) -> int:
         for p in pairs:
             by_axis.setdefault(p["axis"], []).append(p)
         pairs = [p for ax, ps in by_axis.items() for p in ps[: args.limit]]
-    cfg = {"model_slot": args.slot, "k": args.k}
-    other = {"model_slot": args.sealed_slot, "k": args.k} if args.sealed_slot else None
-    report = run_exam(cfg, pairs, other)
+    cfg = {"model_slot": args.slot, "k": args.k, "workers": args.workers}
+    other = ({"model_slot": args.sealed_slot, "k": args.k, "workers": args.workers}
+             if args.sealed_slot else None)
+    report = run_exam(cfg, pairs, other, workers=args.workers)
     render_exam_md(report, args.out)
     print(json.dumps(report, ensure_ascii=False)[:2000])
     return 0 if report.get("pass") else 1

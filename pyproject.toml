@@ -10,6 +10,7 @@ dependencies = [
     "rapidfuzz>=3",
     "llm-verifier>=0.2",   # LLM-as-a-Verifier 官方实现(ADR-0001 L-D4;需要返回 logprobs 的 OpenAI 兼容端点)
     "pypdf>=4",
+    "python-dotenv>=1",    # .env 密钥加载(lab.models 导入时)
 ]
 
 [dependency-groups]
