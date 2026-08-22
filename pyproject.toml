@@ -9,6 +9,7 @@ dependencies = [
     "jsonschema>=4",
     "rapidfuzz>=3",
     "llm-verifier>=0.2",   # LLM-as-a-Verifier 官方实现(ADR-0001 L-D4;需要返回 logprobs 的 OpenAI 兼容端点)
+    "pypdf>=4",
 ]
 
 [dependency-groups]

@@ -20,6 +20,8 @@ from typing import Any
 
 import yaml
 
+from lab.readers import READABLE_SUFFIXES, extract_text, is_scriptlike
+
 # ---- 行分类正则(spec/parsing_conventions.md §行分类) ----
 EP_TITLE = re.compile(r"^第[0-9零一二三四五六七八九十百千]+[集章]")
 SCENE_LINE = re.compile(r"^场景[:：]")
@@ -56,11 +58,20 @@ def _to_base32(val: int, width: int) -> str:
 
 
 def simhash64(text: str) -> str:
-    """64 位 simhash(字符 3-gram 特征,md5 前 8 字节),16 位十六进制。同文同值。"""
+    """64 位 simhash(字符 3-gram 特征,md5 前 8 字节),16 位十六进制。同文同值。
+
+    性能口径:gram 数上限约 8 千,超出按确定性等距步长抽样(全量对长剧本为
+    数十万次哈希×64 位累加,不可用;抽样不破坏"同文同值",近重判定精度略降)。
+    <50 字符的短文本 3-gram 过少,近重判定基本失效,适用下限约为一段完整对白。"""
     v = [0] * 64
-    normalized = "".join(text.split())  # 空白不参与
-    for i in range(max(len(normalized) - 2, 1)):
-        gram = normalized[i : i + 3] if len(normalized) >= 3 else normalized
+    normalized = "".join(text.split())
+    n = len(normalized)
+    if n < 3:
+        grams = [normalized]
+    else:
+        stride = max(1, (n - 2) // 8192)
+        grams = [normalized[i : i + 3] for i in range(0, n - 2, stride)]
+    for gram in grams:
         h = int.from_bytes(md5(gram.encode("utf-8")).digest()[:8], "big")
         for b in range(64):
             v[b] += 1 if (h >> b) & 1 else -1
@@ -85,9 +96,16 @@ def _load_meta(path: Path) -> dict[str, str]:
 
 
 def parse_script(path: str | Path) -> ScriptCard:
-    """接受路径(str|Path,存在则读)或直接文本(不存在该路径则按文本解析)。"""
+    """接受路径(str|Path,是文件则读)或直接文本(不是文件则按文本解析)。
+
+    注意双重语义:拼错的路径不会报错,会被当成正文解析成一张卡(spec 规定)。"""
     p = Path(path)
-    if p.exists():
+    try:
+        is_file = p.is_file()
+    except OSError:
+        # POSIX 对超长"路径"(其实是被当路径的正文)抛 ENAMETOOLONG:按文本处理
+        is_file = False
+    if is_file:
         return ScriptCard(text=p.read_text(encoding="utf-8", errors="ignore"),
                           source_file=p.name, meta=_load_meta(p))
     return ScriptCard(text=str(path), source_file="", meta={})
@@ -106,15 +124,11 @@ def _is_dialogue(line: str) -> tuple[bool, str]:
     return False, ""
 
 
+_SENT_RE = re.compile(r"(?<=[。!?…?!])")
+
+
 def _sentences(text: str) -> list[str]:
-    parts, buf = [], []
-    for ch in text:
-        buf.append(ch)
-        if ch in SENT_SPLIT:
-            parts.append("".join(buf))
-            buf = []
-    if buf:
-        parts.append("".join(buf))
+    parts = _SENT_RE.split(text)
     return [s for s in (p.strip() for p in parts) if s]
 
 
@@ -143,14 +157,19 @@ def stats_card(card: ScriptCard) -> dict[str, Any]:
     sent_len_cv = (statistics.pstdev(sent_lens) / sent_len_mean) if sent_len_mean else 0.0
 
     paras = [p for p in (blk.strip() for blk in card.text.split("\n\n")) if p]
+    if len(paras) <= 1:  # 无空行文本(格式化提取常态):按非空行计段落(parsing_conventions §段落口径)
+        paras = lines
     para_lens = [len("".join(p.split())) for p in paras]
     para_len_cv = (statistics.pstdev(para_lens) / statistics.fmean(para_lens)) if len(para_lens) > 1 and statistics.fmean(para_lens) else 0.0
 
     ep_char_counts = _ep_char_counts(lines)
+    # kind 判定(parsing_conventions §真实语料修正):场次行,或 集标题+高密度对白行
+    dialogue_line_ratio = (n_lines / n) if n else 0.0
+    kind = "drama_script" if scene_idx or (n_episodes and dialogue_line_ratio >= 0.3) else "novel"
 
     return {
         "script_id": f"scr:{_ulid()}",
-        "kind": "drama_script" if scene_idx else "novel",
+        "kind": kind,
         "n_episodes": n_episodes,
         "n_scenes": len(scene_idx),
         "n_lines": n_lines,
@@ -168,10 +187,12 @@ def stats_card(card: ScriptCard) -> dict[str, Any]:
 
 
 def _ep_char_counts(lines: list[str]) -> list[int]:
-    """分集字数(非空白字符;小说=分章)。无任何集/章标题 → 全文记 1 个单位。"""
-    bounds = [i for i, ln in enumerate(lines) if EP_TITLE.match(ln)] + [len(lines)]
-    if len(bounds) == 1:
+    """分集字数(非空白字符;小说=分章)。首个集/章标题之前的前导正文并入第一
+    个单位(口径:spec 未定义,本实现选择并入,见 PR 偏差记录)。无标题 → 全文 1 单位。"""
+    starts = [i for i, ln in enumerate(lines) if EP_TITLE.match(ln)]
+    if not starts:
         return [sum(len("".join(ln.split())) for ln in lines)] if lines else []
+    bounds = ([0] if starts[0] > 0 else []) + starts + [len(lines)]
     return [sum(len("".join(ln.split())) for ln in lines[a:b])
             for a, b in itertools.pairwise(bounds)]
 
@@ -209,33 +230,50 @@ def _card_scalars(card: dict[str, Any]) -> dict[str, float]:
 
 
 def bands(store_dir: str | Path, mined_dir: str | Path) -> dict[str, Any]:
-    """L-02:全 store 卡片 → mined/bands.yaml(各指标 P25/P50/P75 正常带)+ corpus_stats.md 画像。"""
+    """L-02:全 store 卡片 → mined/bands.yaml(各指标 P25/P50/P75 正常带)+ corpus_stats.md 画像。
+
+    bands 按 kind 分组(drama_script / novel 各自的正常带):混合分组的"正常带"
+    两头都不是(剧本与小说的对白占比/句长分布天然不同),会把锚拉平到无意义。
+    顶层 bands = 全体(向后兼容),by_kind = 分组(L-14 消费 drama_script 组)。
+    """
     store, mined = Path(store_dir), Path(mined_dir)
     mined.mkdir(parents=True, exist_ok=True)
     cards = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(store.glob("card_*.json"))]
+    if not cards:
+        raise ValueError(f"store 为空:{store} —— 拒绝产出全零'正常带'(空画像会污染下游锚)")
 
-    scalars = [_card_scalars(c) for c in cards]
-    out_bands = {m: _quantiles([s[m] for s in scalars]) for m in BAND_METRICS}
-    payload = {"version": 1, "n_scripts": len(cards), "metrics": BAND_METRICS,
-               "bands": out_bands, "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文"}
+    def _group(cs: list[dict[str, Any]]) -> dict[str, Any]:
+        scalars = [_card_scalars(c) for c in cs]
+        return {"n": len(cs), "bands": {m: _quantiles([s[m] for s in scalars]) for m in BAND_METRICS}}
+
+    by_kind = {k: _group([c for c in cards if c["kind"] == k])
+               for k in sorted({c["kind"] for c in cards})}
+    out_bands = _group(cards)["bands"]
+    payload = {"version": 2, "n_scripts": len(cards), "metrics": BAND_METRICS,
+               "data_source": store.resolve().as_posix(),
+               "status": "corpus" if len(cards) >= 50 else "placeholder",
+               "bands": out_bands, "by_kind": by_kind,
+               "note": "语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文;"
+                       "n_scripts<50 时 status=placeholder,L-14 应拒绝以此为分布锚;"
+                       "by_kind.drama_script 是 brief 生成的分布锚(剧本≠小说)"}
     (mined / "bands.yaml").write_text(
         yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
-    kinds: dict[str, int] = {}
+    kinds: dict[str, int] = {k: g["n"] for k, g in by_kind.items()}
     genres: dict[str, int] = {}
     for c in cards:
-        kinds[c["kind"]] = kinds.get(c["kind"], 0) + 1
         genres[c["meta"].get("claimed_genre", "未声明")] = genres.get(c["meta"].get("claimed_genre", "未声明"), 0) + 1
     lines = [
         "# 语料画像(corpus_stats)", "",
-        f"- 脚本数:**{len(cards)}**(drama_script={kinds.get('drama_script', 0)}, novel={kinds.get('novel', 0)})",
+        f"- 脚本数:**{len(cards)}**" + "".join(f", {k}={v}" for k, v in sorted(kinds.items())),
         f"- 声称题材分布:{'、'.join(f'{k}×{v}' for k, v in sorted(genres.items())) or '—'}",
         f"- 总字数(非空白):{sum(c.get('total_chars', 0) for c in cards)}",
         f"- 集数范围:{min((c['n_episodes'] for c in cards), default=0)}–{max((c['n_episodes'] for c in cards), default=0)}",
-        "", "## 指标正常带(P25/P50/P75)", "",
-        "| 指标 | P25 | P50 | P75 |", "|---|---|---|---|",
     ]
-    lines += [f"| {m} | {b['p25']} | {b['p50']} | {b['p75']} |" for m, b in out_bands.items()]
+    for kind, g in sorted(by_kind.items()):
+        lines += ["", f"## {kind} 正常带(n={g['n']})", "",
+                  "| 指标 | P25 | P50 | P75 |", "|---|---|---|---|"]
+        lines += [f"| {m} | {b['p25']} | {b['p50']} | {b['p75']} |" for m, b in g["bands"].items()]
     lines += ["", "> 依据 ADR-0001 L-D2 语料锚:'好'=不偏离带内。本文件为聚合产物,不含任何语料原文。"]
     (mined / "corpus_stats.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return payload
@@ -255,11 +293,19 @@ def ingest(inbox_dir: str | Path, store_dir: str | Path) -> dict[str, Any]:
 
     report: dict[str, Any] = {"ingested": 0, "duplicates": 0, "skipped": [], "accepted": []}
     for p in sorted(inbox.rglob("*")):
-        if not p.is_file() or p.suffix not in {".txt", ".md", ".fountain", ".meta.yaml"}:
+        if not p.is_file() or p.name == ".gitkeep" or p.suffix.lower() == ".yaml":
+            continue  # .meta.yaml 侧车由 _load_meta 读取,不当正文
+        if p.suffix.lower() not in READABLE_SUFFIXES:
+            report["skipped"].append({"file": p.name, "reason": "nontext"})
             continue
-        if p.suffix == ".meta.yaml":
+        text = extract_text(p)
+        if text is None:
+            report["skipped"].append({"file": p.name, "reason": "unextractable"})
             continue
-        card = parse_script(p)
+        if not is_scriptlike(text):
+            report["skipped"].append({"file": p.name, "reason": "not_scriptlike"})
+            continue
+        card = ScriptCard(text=text, source_file=p.name, meta=_load_meta(p))
         stats = stats_card(card)
         dup = next((sid for sh, sid in seen if hamming(sh, stats["simhash"]) <= HAMMING_SAME), None)
         if dup:
@@ -276,6 +322,28 @@ def ingest(inbox_dir: str | Path, store_dir: str | Path) -> dict[str, Any]:
     return report
 
 
+def restat(store_dir: str | Path) -> int:
+    """按当前统计口径重算 store 内全部卡片(保留 script_id 与文件名,防断链)。
+
+    stats_card 每次生成新 ULID;重算时用旧卡的 script_id 覆盖,保证
+    script_id 稳定 —— 下游(偏好对/分层抽样)以它为主键。
+    """
+    store = Path(store_dir)
+    n = 0
+    for text_file in sorted(store.glob("text_*.txt")):
+        sid_tail = text_file.stem.removeprefix("text_")
+        card_file = store / f"card_{sid_tail}.json"
+        old = json.loads(card_file.read_text(encoding="utf-8")) if card_file.exists() else {}
+        card = parse_script(text_file)
+        stats = stats_card(card)
+        stats["script_id"] = old.get("script_id", stats["script_id"])
+        stats["meta"] = {**stats["meta"], **{k: v for k, v in old.get("meta", {}).items()
+                                             if k in ("claimed_genre", "claimed_platform")}}
+        card_file.write_text(json.dumps(stats, ensure_ascii=False, indent=1), encoding="utf-8")
+        n += 1
+    return n
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="lab.corpus")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -285,10 +353,16 @@ def main(argv: list[str] | None = None) -> int:
     st = sub.add_parser("stats", help="store 卡片 → mined/bands.yaml + corpus_stats.md")
     st.add_argument("--store", default="corpus/store")
     st.add_argument("--mined", default="mined")
+    rs = sub.add_parser("restat", help="按当前口径重算卡片(保留 script_id)")
+    rs.add_argument("--store", default="corpus/store")
     args = ap.parse_args(argv)
     if args.cmd == "ingest":
         report = ingest(args.inbox, args.store)
         print(json.dumps(report, ensure_ascii=False, indent=1))
+        return 0
+    if args.cmd == "restat":
+        n = restat(args.store)
+        print(json.dumps({"restat": n}, ensure_ascii=False))
         return 0
     if args.cmd == "stats":
         payload = bands(args.store, args.mined)

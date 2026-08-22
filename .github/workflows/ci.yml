@@ -1,4 +1,5 @@
 name: ci
+# 步骤变更必须同步 Makefile::ci 与 scripts/ci.py(三处同构,drift = 事故)
 on:
   push:
     branches: ["**"]

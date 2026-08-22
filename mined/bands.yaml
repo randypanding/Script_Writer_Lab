@@ -1,5 +1,5 @@
-version: 1
-n_scripts: 2
+version: 2
+n_scripts: 1665
 metrics:
 - dialogue_ratio
 - sent_len_mean
@@ -8,33 +8,99 @@ metrics:
 - hook_density
 - ep_char_median
 - episodes_per_script
+data_source: D:/Projects/Script_Writer_Lab/corpus/store
+status: corpus
 bands:
   dialogue_ratio:
-    p25: 0.0
-    p50: 0.21063
-    p75: 0.42126
+    p25: 0.005619
+    p50: 0.024444
+    p75: 0.075134
   sent_len_mean:
-    p25: 16.6667
-    p50: 18.1026
-    p75: 19.5385
+    p25: 31.7281
+    p50: 39.0215
+    p75: 48.94725
   sent_len_cv:
-    p25: 0.539643
-    p50: 0.701156
-    p75: 0.86267
+    p25: 0.698327
+    p50: 0.795489
+    p75: 0.932038
   para_len_cv:
-    p25: 0.0
-    p50: 0.283394
-    p75: 0.566789
+    p25: 0.581897
+    p50: 0.672975
+    p75: 0.780386
   hook_density:
     p25: 0.0
-    p50: 1.0
-    p75: 2.0
+    p50: 0.0
+    p75: 0.0
   ep_char_median:
-    p25: 127.0
-    p50: 163.5
-    p75: 200.0
+    p25: 2349.5
+    p50: 3087.0
+    p75: 3512.25
   episodes_per_script:
-    p25: 1.0
-    p50: 1.5
-    p75: 2.0
-note: 语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文
+    p25: 249.0
+    p50: 653.0
+    p75: 1100.0
+by_kind:
+  drama_script:
+    n: 144
+    bands:
+      dialogue_ratio:
+        p25: 0.266977
+        p50: 0.373098
+        p75: 0.480232
+      sent_len_mean:
+        p25: 28.036425
+        p50: 34.23215
+        p75: 46.353
+      sent_len_cv:
+        p25: 0.72271
+        p50: 0.801941
+        p75: 0.97819
+      para_len_cv:
+        p25: 0.69643
+        p50: 0.839363
+        p75: 1.060796
+      hook_density:
+        p25: 0.0
+        p50: 0.0
+        p75: 0.0
+      ep_char_median:
+        p25: 512.5
+        p50: 598.5
+        p75: 844.25
+      episodes_per_script:
+        p25: 10.0
+        p50: 10.0
+        p75: 78.5
+  novel:
+    n: 1521
+    bands:
+      dialogue_ratio:
+        p25: 0.004493
+        p50: 0.020016
+        p75: 0.05417
+      sent_len_mean:
+        p25: 32.17795
+        p50: 39.367
+        p75: 49.0995
+      sent_len_cv:
+        p25: 0.697263
+        p50: 0.793619
+        p75: 0.926775
+      para_len_cv:
+        p25: 0.574133
+        p50: 0.66261
+        p75: 0.75871
+      hook_density:
+        p25: 0.0
+        p50: 0.0
+        p75: 0.0
+      ep_char_median:
+        p25: 2659.0
+        p50: 3102.0
+        p75: 3651.75
+      episodes_per_script:
+        p25: 345.0
+        p50: 705.0
+        p75: 1150.0
+note: 语料群体统计正常带(ADR-0001 L-D2 语料锚);聚合产物,无原文;n_scripts<50 时 status=placeholder,L-14
+  应拒绝以此为分布锚;by_kind.drama_script 是 brief 生成的分布锚(剧本≠小说)
