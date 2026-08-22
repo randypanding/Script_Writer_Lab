@@ -87,6 +87,23 @@ def test_ensure_pool_creates_windows(fake, monkeypatch):
     assert len(fake.created) >= 4
 
 
+def test_close_and_cleanup_pool(fake, monkeypatch):
+    closed = []
+
+    def http_spy(method, path, body=None, timeout=30):
+        if method == "PATCH" and body and body.get("state") == "closed":
+            n = int(path.split("/issues/")[1])
+            closed.append(n)
+            return {}
+        return fake.http(method, path, body, timeout)
+
+    monkeypatch.setattr(swarm, "_http", http_spy)
+    out = swarm.cleanup_pool()
+    # 锁死的 3 号 + 退役的 4 号被关闭;1、2 健康空闲不动
+    assert sorted(closed) == [3, 4]
+    assert out["closed"] == [3, 4]
+
+
 def test_poll_timeout_raises(monkeypatch):
     f = FakeCNB(auto_reply=None)
     monkeypatch.setattr(swarm, "_http", f.http)

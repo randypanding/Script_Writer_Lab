@@ -72,6 +72,29 @@ def create_window(title: str | None = None) -> int:
     return int(resp["number"])
 
 
+def close_window(number: int) -> bool:
+    """关闭窗口。CNB 要求 state 与 state_reason 同时给(实证:单给 state 报 2000054)。"""
+    try:
+        _http("PATCH", f"/-/issues/{number}", {"state": "closed", "state_reason": "completed"})
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def cleanup_pool() -> dict:
+    """关闭锁死窗口(最后评论是人类指令)与退役窗口(≥80 评论),返回统计。
+
+    警告:会无差别关闭"人类指令收尾"的窗口——在飞任务的窗口也长这样。
+    只能在无战役运行时调用。"""
+    status = pool_status()
+    closed = []
+    for s in status:
+        if (not s["free"]) or s["comments"] >= MAX_HEALTHY_COMMENTS:
+            if close_window(s["number"]):
+                closed.append(s["number"])
+    return {"closed": closed, "remaining_healthy_free": len(healthy_free_windows(status))}
+
+
 def pool_status(workers: int = 16) -> list[dict]:
     """全池体检:[{number, comments, free}]。free = 最后评论来自 NPC 或无评论。"""
     try:
