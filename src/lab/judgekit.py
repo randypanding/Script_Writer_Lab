@@ -246,8 +246,13 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
         ]
         replies = swarm.run_batch(instructions, workers=workers)
         votes: dict[tuple[int, int], list[str]] = {}
+        n_abstain = 0
         for chunk, reply in zip(chunks, replies, strict=True):
-            letters = swarm.parse_packed_votes(reply, len(chunk))
+            if reply is None:  # 弃票(窗口全灭/重试耗尽)
+                n_abstain += 1
+                letters = [""] * len(chunk)
+            else:
+                letters = swarm.parse_packed_votes(reply, len(chunk))
             for (i, d, _, _), letter in zip(chunk, letters, strict=True):
                 votes.setdefault((i, d), []).append(letter)
 
@@ -272,6 +277,7 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
             "sensitivity": round(sensitivity, 4),
             "block_sensitivity": round(block_sensitivity, 4) if block_sensitivity is not None else None,
             "position_bias": round(position_bias, 4),
+            "abstain_chunks": n_abstain,
             "transitivity": None,
             "pass": (
                 n >= gates["min_exam_pairs_per_axis"]

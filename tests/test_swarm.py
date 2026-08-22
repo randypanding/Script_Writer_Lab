@@ -8,9 +8,10 @@ from lab import swarm
 
 class FakeCNB:
     """内存版 CNB:窗口 1 无评论(空闲),窗口 2 最后为 NPC 回复(空闲),
-    窗口 3 占用中,窗口 4 评论 85 条(退役)。dispatch 同步追加 NPC 回复。"""
+    窗口 3 占用中,窗口 4 评论 85 条(退役)。dispatch 同步追加 NPC 回复。
+    auto_reply: str | None | dict[int, str|None](按窗口定制,缺省 'A')。"""
 
-    def __init__(self, auto_reply: str | None = "A"):
+    def __init__(self, auto_reply="A"):
         self.comments = {
             1: [],
             2: [{"author": {"is_npc": True}, "body": "旧回复"}],
@@ -34,8 +35,9 @@ class FakeCNB:
             if method == "POST":
                 self.posts.append((n, body))
                 self.comments[n].append({"author": {"is_npc": False}, "body": body["body"]})
-                if self.auto_reply is not None:
-                    self.comments[n].append({"author": {"is_npc": True}, "body": self.auto_reply})
+                reply = self.auto_reply.get(n, "A") if isinstance(self.auto_reply, dict) else self.auto_reply
+                if reply is not None:
+                    self.comments[n].append({"author": {"is_npc": True}, "body": reply})
                 return {}
             return self.comments[n]
         if "/issues" in path:
@@ -136,6 +138,24 @@ def test_run_batch(fake):
     outs = swarm.run_batch(["任务一", "任务二", "任务三"], workers=2, timeout_s=10)
     assert outs == ["A", "A", "A"]
     assert len(fake.posts) == 3
+
+
+def test_dead_window_retried_on_another(monkeypatch):
+    """窗口超时 → 拉黑换窗重试,不拖死全场(实证:单个死窗曾杀死整场考试)。"""
+    f = FakeCNB(auto_reply={1: None, 2: "A"})  # 窗口 1 永不回复
+    monkeypatch.setattr(swarm, "_http", f.http)
+    monkeypatch.setattr(swarm.time, "sleep", lambda s: None)
+    outs = swarm.run_batch(["任务"], workers=1, timeout_s=0.05, max_retries=1)
+    assert outs == ["A"]
+
+
+def test_all_windows_dead_abstains(monkeypatch):
+    """重试耗尽 → 弃票返回 None,而不是整场崩溃。"""
+    f = FakeCNB(auto_reply=None)
+    monkeypatch.setattr(swarm, "_http", f.http)
+    monkeypatch.setattr(swarm.time, "sleep", lambda s: None)
+    outs = swarm.run_batch(["任务"], workers=1, timeout_s=0.05, max_retries=1)
+    assert outs == [None]
 
 
 def test_route_swarm_backend(monkeypatch, tmp_path):

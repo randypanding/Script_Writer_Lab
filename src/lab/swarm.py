@@ -167,10 +167,14 @@ def run_task(instruction: str, work_mode: bool = False, timeout_s: float = 600) 
 
 
 def run_batch(instructions: list[str], work_mode: bool = False, timeout_s: float = 900,
-              workers: int = 16) -> list[str]:
+              workers: int = 16, max_retries: int = 2,
+              circuit_breaker: int = 10) -> list[str | None]:
     """多任务并行:窗口队列复用(NPC 回复后即空闲归还),全局并发闸兜底。
 
-    任务间必须相互独立(指南 §6)。窗口数即天然并发上限,workers 再大也不会超池。
+    韧性(实证:单个死窗口曾杀死整场考试):
+    - 窗口超时 → 本地拉黑该窗口,换窗重试,最多 max_retries 次;
+    - 重试耗尽 → 该任务弃票返回 None(调用方按缺失票处理),不拖死全场;
+    - 连续 circuit_breaker 次失败 → 熔断 raise(平台额度/服务异常,继续跑只会产垃圾)。
     """
     wins = healthy_free_windows()
     if len(wins) < min(len(instructions), MIN_FREE_POOL):
@@ -181,15 +185,49 @@ def run_batch(instructions: list[str], work_mode: bool = False, timeout_s: float
     win_q: queue.Queue[int] = queue.Queue()
     for w in wins:
         win_q.put(w)
+    total_windows = len(wins)
+    blacklist: set[int] = set()
+    lock = threading.Lock()
+    consecutive_fail = 0
 
-    def _one(ins: str) -> str:
-        with _inflight:
-            n = win_q.get()
+    def _take() -> int | None:
+        while True:
             try:
-                dispatch(n, ins, work_mode=work_mode)
-                return poll_reply(n, timeout_s=timeout_s)
-            finally:
+                n = win_q.get(timeout=1)
+            except queue.Empty:
+                with lock:
+                    if len(blacklist) >= total_windows:
+                        return None  # 窗口全灭
+                continue  # 窗口都在飞,继续等
+            if n not in blacklist:
+                return n
+            with lock:  # 拉黑窗口不归还(本地退役)
+                if len(blacklist) >= total_windows:
+                    return None
+
+    def _one(ins: str) -> str | None:
+        nonlocal consecutive_fail
+        for _attempt in range(max_retries + 1):
+            with _inflight:
+                with lock:
+                    if consecutive_fail >= circuit_breaker:
+                        raise RuntimeError("熔断:连续失败超阈(疑似平台额度/服务异常)")
+                n = _take()
+                if n is None:
+                    return None
+                try:
+                    dispatch(n, ins, work_mode=work_mode)
+                    reply = poll_reply(n, timeout_s=timeout_s)
+                except TimeoutError:
+                    with lock:
+                        blacklist.add(n)
+                        consecutive_fail += 1
+                    continue  # 死窗口不归还
+                with lock:
+                    consecutive_fail = 0
                 win_q.put(n)  # NPC 回复后窗口即空闲,归还复用
+                return reply
+        return None  # 弃票
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         return list(ex.map(_one, instructions))

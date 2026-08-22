@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 3
+date: "2026-08-23"
+hypothesis: "测量基建迭代(非产物变更):首考 FAIL 的三根因修复后,判官灵敏度应回到可分辨水平——①语料锚=元数据残片 ②D08 矛盾句与事实不同窗 ③小说文体被片段选择器误杀"
+surface: op.propose_check_rule
+change: "pairs.py _narrative_excerpt(双文体锚点+元数据行剔除+有效性门槛);degrade.py D08 同窗紧邻插入+无事实诚实返回;打包投票加信号级分解;偏好对重建为 32708 条(exam 6726)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "首考(修复前)数据:naturalness/l0_dialogue 灵敏度 0.00(元数据残片所致——语料锚是制作信息表,判官当然偏爱生成物),l0_fact 0.43(矛盾句插在原事实之前/片段外),位置偏差多轴 ~0.5。教训:评估器的缺陷会伪装成被评对象的缺陷——先信考试,再信分数。复考成绩填入下轮。"
+```
+```yaml
 round: 2
 date: "2026-08-23"
 hypothesis: "战役起点记录(非优化轮):免费路径(CNB swarm,随机后端)承载全部生成与评测;判官闸门待打包考试裁决"
