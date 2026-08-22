@@ -50,3 +50,48 @@ def test_pair_id_deterministic():
     c = build_pair("prose_craft", "甲", "丙", "a_win",
                    {"kind": "corpus_degraded", "op_id": "D05_inject_slop"}, "exam")
     assert a["pair_id"] != c["pair_id"]
+
+
+def test_gen_degraded_pairs(tmp_path):
+    from lab.pairs import assert_no_split_leakage, build_gen_degraded
+    gen = [("run-abc", MINI)]
+    pairs = build_gen_degraded(gen, severities=(1.0,))
+    assert len(pairs) >= 5
+    assert all(p["construction"]["kind"] == "gen_degraded" and
+               p["construction"]["source_run_id"] == "run-abc" for p in pairs)
+    assert all(p["label"] == "a_win" for p in pairs)
+    assert_no_split_leakage(pairs)
+
+
+def test_corpus_vs_gen_skips_in_band_and_labels_by_band_rule(tmp_path, monkeypatch):
+    """带内生成物不构造;带外生成物按语料锚规则 a_win。"""
+    import yaml as _yaml
+
+
+    store = _make_store(tmp_path, 2)
+    # 卡片标记为 drama_script(构造带内语料源)
+    import json as _json
+    for p in store.glob("card_*.json"):
+        c = _json.loads(p.read_text(encoding="utf-8")); c["kind"] = "drama_script"
+        p.write_text(_json.dumps(c, ensure_ascii=False), encoding="utf-8")
+    mined = tmp_path / "mined"; mined.mkdir()
+    (mined / "bands.yaml").write_text(_yaml.safe_dump(
+        {"by_kind": {"drama_script": {"n": 50, "bands": {
+            "dialogue_ratio": {"p25": 0.1, "p50": 0.2, "p75": 0.3},
+            "sent_len_cv": {"p25": 0.5, "p50": 0.6, "p75": 0.7},
+            "sent_len_mean": {"p25": 10, "p50": 15, "p75": 20}}}}}), encoding="utf-8")
+    import lab.pairs as P
+    bands_file = mined / "bands.yaml"
+    pairs = P.build_corpus_vs_gen(store, [("run-x", MINI)], per_gen=2, bands_path=bands_file)
+    # MINI 的 dialogue_ratio≈0.21 在 [0.1,0.3] 带内;但 sent_len_cv 可能带外 → 只检构造合法性
+    for p in pairs:
+        assert p["construction"]["kind"] == "corpus_vs_gen"
+        assert p["label"] == "a_win" and p["construction"]["source_run_id"] == "run-x"
+    # 全带内文本(构造一个假 bands 使所有指标带内覆盖)→ 0 对
+    (mined / "bands.yaml").write_text(_yaml.safe_dump(
+        {"by_kind": {"drama_script": {"n": 50, "bands": {
+            "dialogue_ratio": {"p25": 0.0, "p50": 0.2, "p75": 1.0},
+            "sent_len_cv": {"p25": 0.0, "p50": 0.6, "p75": 5.0},
+            "sent_len_mean": {"p25": 0.0, "p50": 15, "p75": 999}}}}}), encoding="utf-8")
+    pairs2 = P.build_corpus_vs_gen(store, [("run-x", MINI)], per_gen=2, bands_path=bands_file)
+    assert pairs2 == []

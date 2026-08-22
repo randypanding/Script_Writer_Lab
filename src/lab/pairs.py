@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -136,6 +137,97 @@ def build_corpus_degraded(
     return pairs
 
 
+def build_gen_degraded(
+    gen_texts: list[tuple[str, str]],
+    *,
+    severities: tuple[float, ...] = (0.5, 1.0),
+    rng_seed: int = 7,
+) -> list[dict[str, Any]]:
+    """来源 2:我们生成物 × 退化算子(gen_degraded)。标签由构造保证(原版优于退化版)。
+
+    gen_texts: [(run_id, text)] —— run_id 作为 source_run_id 与切分键(同 run 的对同 split)。
+    """
+    from lab.degrade import REGISTRY
+
+    pairs: list[dict[str, Any]] = []
+    for run_id, text in gen_texts:
+        fragment = text[:1200]
+        for op_id, op in sorted(REGISTRY.items()):
+            if op.mechanism == "llm_mid":
+                continue
+            for sev in severities:
+                degraded = op.apply(fragment, sev, rng_seed)
+                if degraded == fragment:
+                    continue
+                pairs.append(build_pair(
+                    axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
+                    construction={"kind": "gen_degraded", "op_id": op_id,
+                                  "severity": sev, "source_run_id": run_id},
+                    split=_split_of(f"run:{run_id}"),
+                ))
+    return pairs
+
+
+# 轴 → 语料锚指标(用于 corpus_vs_gen 的构造性标签;偏离带 = 语料锚意义上的劣,ADR L-D2)
+_AXIS_BAND_METRIC = {
+    "naturalness": "dialogue_ratio", "l0_dialogue": "dialogue_ratio",
+    "prose_craft": "sent_len_cv", "transportation": "sent_len_mean",
+}
+
+
+def build_corpus_vs_gen(
+    store_dir: str | Path,
+    gen_texts: list[tuple[str, str]],
+    *,
+    per_gen: int = 20,
+    bands_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    """来源 3:语料(带内) vs 我们生成物(corpus_vs_gen)。
+
+    标签构造口径(无任何模型判断):语料锚定义"好 = 不偏离带内"(ADR-0001 L-D2)。
+    仅当生成物片段在轴对应指标上**确定性偏离正常带**时构造对(标签 a_win = 语料胜);
+    带内生成物不构造(无构造性顺序,诚实跳过)。
+    """
+    import yaml as _yaml
+
+    from lab.corpus import parse_script, stats_card
+
+    bp = Path(bands_path) if bands_path else Path(__file__).parents[2] / "mined" / "bands.yaml"
+    bands = _yaml.safe_load(bp.read_text(encoding="utf-8"))
+    drama = bands["by_kind"]["drama_script"]["bands"]
+    store = Path(store_dir)
+    # 抽带内语料片段(drama_script 组,前 per_gen×len(gen) 部)
+    corpus_frags: list[tuple[str, str]] = []
+    for card_file in sorted(store.glob("card_*.json")):
+        card = json.loads(card_file.read_text(encoding="utf-8"))
+        if card["kind"] != "drama_script":
+            continue
+        tf = store / f"text_{card['script_id'].split(':')[1]}.txt"
+        if tf.exists():
+            corpus_frags.append((card["script_id"], tf.read_text(encoding="utf-8")[:1200]))
+        if len(corpus_frags) >= per_gen * max(1, len(gen_texts)):
+            break
+    if not corpus_frags:
+        return []
+
+    pairs: list[dict[str, Any]] = []
+    for run_id, text in gen_texts:
+        frag = text[:1200]
+        card = stats_card(parse_script(frag))
+        for axis, metric in _AXIS_BAND_METRIC.items():
+            lo, hi = drama[metric]["p25"], drama[metric]["p75"]
+            if lo <= card[metric] <= hi:
+                continue  # 带内 → 无构造性顺序,跳过
+            for sid, cfrag in corpus_frags[:per_gen]:
+                pairs.append(build_pair(
+                    axis=axis, a_text=cfrag, b_text=frag, label="a_win",
+                    construction={"kind": "corpus_vs_gen",
+                                  "source_script_id": sid, "source_run_id": run_id},
+                    split=_split_of(sid),  # 切分键=语料 script_id(防同脚本跨 split)
+                ))
+    return pairs
+
+
 def write_jsonl(pairs: list[dict[str, Any]], out_dir: str | Path) -> dict[str, int]:
     """按 split 写 out/pairs/{exam,train,val}.jsonl;返回各 split 条数。"""
     out = Path(out_dir)
@@ -164,6 +256,28 @@ def assert_no_split_leakage(pairs: list[dict[str, Any]]) -> None:
         seen[sid] = p["split"]
 
 
+def _gen_texts_from_runs(runs_dir: str | Path, limit: int = 20) -> list[tuple[str, str]]:
+    """从 lab.runner 产物目录提取生成文本:[(run_id, episode_text)]。"""
+    from lab.runner import Artifact, episode_text
+
+    out: list[tuple[str, str]] = []
+    for meta_file in sorted(Path(runs_dir).glob("*/meta.json")):
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not meta.get("ir_path"):
+            continue
+        art = Artifact(meta["run_id"], meta["brief"], meta["profile"], meta["seed"],
+                       meta["out_dir"], meta["ir_path"], meta["returncode"])
+        text = episode_text(art)
+        if text.strip():
+            out.append((meta["run_id"], text))
+        if len(out) >= limit:
+            break
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="lab.pairs")
     b = ap.add_subparsers(dest="cmd", required=True)
@@ -172,13 +286,20 @@ def main(argv: list[str] | None = None) -> int:
     gen.add_argument("--out", default="out/pairs")
     gen.add_argument("--severities", default="0.5,1.0")
     gen.add_argument("--llm-mid", action="store_true", help="纳入 llm_mid 算子(真实 API)")
+    gen.add_argument("--gen-dir", default="out/runs",
+                     help="SW 运行产物目录(扫 ir.json 提取生成文本;缺省包含全部来源)")
     args = ap.parse_args(argv)
     if args.cmd == "build":
         sevs = tuple(float(x) for x in args.severities.split(",") if x.strip())
         pairs = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid)
+        gen_texts = _gen_texts_from_runs(args.gen_dir)
+        pairs += build_gen_degraded(gen_texts, severities=sevs)
+        pairs += build_corpus_vs_gen(args.store, gen_texts)
         assert_no_split_leakage(pairs)
         counts = write_jsonl(pairs, args.out)
-        print(json.dumps({"total": len(pairs), **counts}, ensure_ascii=False))
+        kinds = Counter(p["construction"]["kind"] for p in pairs)
+        print(json.dumps({"total": len(pairs), **counts, "kinds": dict(kinds)},
+                         ensure_ascii=False))
         return 0
     return 1
 

@@ -29,10 +29,36 @@ TEXT_SUFFIXES = {".md", ".yaml", ".yml", ".py", ".txt", ".json", ".jsonl", ".tom
 
 
 def tracked_files() -> list[str]:
+    """-z:NUL 分隔、不做 quotepath 转义。否则中文路径被引号包裹
+    ("\"corpus/inbox/\\346\\224\\267...\""),startswith("corpus/") 失配 → 路径防线
+    对真实语料(全在中文目录下)完全失效(独立验证实证的盲区)。"""
     out = subprocess.run(
-        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
     ).stdout
-    return [line for line in out.splitlines() if line]
+    return [p.decode("utf-8", "surrogateescape") for p in out.split(b"\0") if p]
+
+
+def _read_best_decoded(path: Path) -> str:
+    """语料文件按最佳解码读取:utf-8 与 GBK 中取 CJK 占比高者。
+
+    真实语料存在大量 GBK 编码文件(验证实证:GBK 源 100 字符粘贴曾漏检)——
+    utf-8/ignore 会把 GBK 中文解码成乱码,索引键随之全错,内容防线对这类
+    语料失效;泄漏者粘贴的是正确解码文本,必须用同一解码建索引。"""
+    raw = path.read_bytes()
+    best, best_ratio = "", -1.0
+    for enc in ("utf-8", "gbk"):
+        try:
+            text = raw.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+        body = "".join(text.split())
+        if not body:
+            ratio = 0.0
+        else:
+            ratio = sum(1 for ch in body if "\u4e00" <= ch <= "\u9fff") / len(body)
+        if ratio > best_ratio:
+            best, best_ratio = text, ratio
+    return best or raw.decode("utf-8", errors="ignore")
 
 
 def _corpus_files() -> list[Path]:
@@ -48,7 +74,7 @@ def _has_cjk(win: str) -> bool:
 
 
 CACHE_DIR = ROOT / "out" / "guard_cache"
-INDEX_VERSION = 4  # 索引算法变更时 +1,作废旧缓存
+INDEX_VERSION = 5  # 索引算法变更时 +1,作废旧缓存(v5:GBK 最佳解码)
 
 
 def _win_key(win: str) -> int:
@@ -95,7 +121,7 @@ def load_index() -> set[int] | None:
             except (OSError, pickle.UnpicklingError, EOFError):
                 keys = None  # 缓存损坏 → 重建该文件
         if keys is None:
-            keys = _file_keys(p.read_text(encoding="utf-8", errors="ignore"))
+            keys = _file_keys(_read_best_decoded(p))
             tmp = cache.with_suffix(".tmp")
             with tmp.open("wb") as f:
                 pickle.dump(keys, f, protocol=pickle.HIGHEST_PROTOCOL)
