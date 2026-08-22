@@ -1,0 +1,11 @@
+# champion 注册表(contract/promotion.yaml::registry;仅 lab.runner 可写)
+champions:
+  - tag: champion/bootstrap-mock
+    sw_commit: 51af58a06d0e4ba36564922ed21da5a7472e3585
+    spec_sha: 32d33be194b5d0a701a6232e1823e9d64a8dd355
+    promptset_sha: null
+    sealed_score: null
+    baseline_score_mock: 0.2033
+    date: "2026-08-22"
+    note: "bootstrap 刻印:mock LLM 管线基线(10 合成 brief 全通,确定性基准分);"
+      "promptset 在该 ref 未入库(gitignored 生成物)记 null;真实判官分待 API key"

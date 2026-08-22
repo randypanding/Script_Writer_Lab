@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from lab.degrade import REGISTRY
 
 SPEC = yaml.safe_load(

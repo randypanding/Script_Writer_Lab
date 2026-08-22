@@ -1,0 +1,31 @@
+# 合成 brief 分布规格(L-14)。被 contract/objective.yaml::brief_distribution 引用,优化器不可改。
+# 分布锚:mined/bands.yaml::by_kind.drama_script(语料锚,L-D2);权重取整冻结为规格常数,
+# 防止语料小幅增删造成 brief 分布漂移。改动本文件需 ADR + 人类确认。
+version: 1
+anchor: mined/bands.yaml::by_kind.drama_script
+target_counts: {dev: 30, val: 15}
+seed: 20260822
+dimensions:
+  episodes:
+    # 集数分桶与权重(依据 drama_script 组 episodes_per_script 的 P25/P50/P75 ≈ 6/10/24 定桶)
+    buckets: [[1, 6], [7, 12], [13, 30], [31, 60], [61, 120]]
+    weights: [0.30, 0.35, 0.20, 0.10, 0.05]
+  ep_minutes: {point: 1.5, jitter: 0.5}
+  genre_mix:
+    都市情感: 0.30
+    逆袭复仇: 0.25
+    家庭伦理: 0.15
+    古装宫斗: 0.15
+    悬疑反转: 0.15
+  scene_anchors: [门店, 办公室, 出租屋, 小区, 工厂, 学校门口]
+  placement:
+    brand_mentions_per_ep: [1, 3]
+    selling_points: 3
+chi_square: {alpha: 0.05, critical_values: {1: 3.841, 2: 5.991, 3: 7.815, 4: 9.488, 5: 11.070}}
+brief_fields:  # 生成的 brief yaml 必须带的字段(与 SW brief 对齐)
+  - project_title
+  - profile
+  - brand
+  - raw_request
+  - episode_count
+  - notes
