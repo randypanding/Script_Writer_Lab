@@ -20,3 +20,7 @@
 - 链式命令必须 `set -o pipefail`(管道吞退出码的实证);
 - 任何可中断的长任务必须有断点续跑(如 `pairs build --llm-mid` 的 partial_llm.jsonl);
 - 重启必须是幂等/可续的——"重启零损失"才允许自动重试。
+- **杀任务要杀整棵进程树**(实证:TaskStop 只杀壳,孤儿进程存活并与新链并发抢窗口、
+  双写日志)。Windows 下:`powershell -c "taskkill /PID <根PID> /T /F"`,
+  杀前先用 `Get-CimInstance Win32_Process` 确认父子关系,别误杀友军(实证:误杀过一次在飞考试,
+  靠监督器自动重试+断点续跑自愈)。
