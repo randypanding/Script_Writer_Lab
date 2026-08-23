@@ -154,17 +154,34 @@ def build_corpus_degraded(
     llm_mid: bool = False,
     llm_mid_scripts: int = 300,
     rng_seed: int = 7,
+    checkpoint: str | Path | None = None,
 ) -> list[dict[str, Any]]:
     """store 全部语料 × deterministic(可选 llm_mid)算子 → 偏好对列表。
 
     片段截取:_narrative_excerpt(跳过片头元数据,两种文体)。
     llm_mid 算子每个都要一次真实改写,只作用于前 llm_mid_scripts 部有正文的语料
     (默认 300 部 × 5 算子 × 2 强度 ≈ 3000 次改写,swarm 免费路径可承受)。
+    checkpoint:llm_mid 对逐条落盘(JSONL),崩溃/中断后重跑自动跳过已完成项
+    (实证:423 抖动曾让 531 次改写成果全损)。
     """
+    import threading as _th
+
     from lab.degrade import REGISTRY
 
     store = Path(store_dir)
     pairs: list[dict[str, Any]] = []
+    done_keys: set[tuple[str, str, float]] = set()
+    ckpt_path = Path(checkpoint) if checkpoint else None
+    ckpt_lock = _th.Lock()
+    if ckpt_path and ckpt_path.exists():
+        for ln in ckpt_path.read_text(encoding="utf-8").splitlines():
+            if not ln.strip():
+                continue
+            p = json.loads(ln)
+            c = p["construction"]
+            done_keys.add((c.get("source_script_id", ""), c.get("op_id", ""),
+                           float(c.get("severity", 0))))
+            pairs.append(p)
     llm_jobs: list[tuple[str, str, str, float]] = []  # (sid, fragment, op_id, severity)
     llm_mid_used = 0
     for card_file in sorted(store.glob("card_*.json")):
@@ -183,7 +200,8 @@ def build_corpus_degraded(
             if op.mechanism == "llm_mid":
                 if use_llm:
                     for sev in severities:
-                        llm_jobs.append((sid, fragment, op_id, sev))
+                        if (sid, op_id, float(sev)) not in done_keys:
+                            llm_jobs.append((sid, fragment, op_id, sev))
                 continue
             for sev in severities:
                 degraded = op.apply(fragment, sev, rng_seed)
@@ -202,10 +220,16 @@ def build_corpus_degraded(
         degraded = op.apply(fragment, sev, rng_seed)
         if degraded == fragment:
             return None
-        return build_pair(axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
+        pair = build_pair(axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
                           construction={"kind": "corpus_degraded", "op_id": op_id,
                                         "severity": sev, "source_script_id": sid},
                           split=_split_of(sid))
+        if ckpt_path:
+            with ckpt_lock:
+                ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+                with ckpt_path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(pair, ensure_ascii=False) + "\n")
+        return pair
 
     if llm_jobs:
         with ThreadPoolExecutor(max_workers=24) as ex:
@@ -373,8 +397,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "build":
         sevs = tuple(float(x) for x in args.severities.split(",") if x.strip())
+        ckpt = (Path(args.out) / "partial_llm.jsonl") if args.llm_mid else None
         pairs = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid,
-                                      llm_mid_scripts=args.llm_mid_limit)
+                                      llm_mid_scripts=args.llm_mid_limit, checkpoint=ckpt)
         gen_texts = _gen_texts_from_runs(args.gen_dir)
         pairs += build_gen_degraded(gen_texts, severities=sevs)
         pairs += build_corpus_vs_gen(args.store, gen_texts)

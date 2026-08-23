@@ -21,6 +21,7 @@ import queue
 import re
 import threading
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -46,15 +47,33 @@ def _token() -> str:
     return tok
 
 
+_TRANSIENT_HTTP = {423, 429, 500, 502, 503, 504}
+
+
 def _http(method: str, path: str, body: dict | None = None, timeout: int = 30) -> Any:
-    req = urllib.request.Request(f"{BASE}/{REPO}{path}", method=method)
-    req.add_header("Authorization", f"Bearer {_token()}")
-    req.add_header("Content-Type", "application/vnd.cnb.api+json")
-    req.add_header("Accept", "application/vnd.cnb.api+json")
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
-    with urllib.request.urlopen(req, data=data, timeout=timeout) as resp:
-        raw = resp.read().decode("utf-8")
-    return json.loads(raw) if raw.strip() else {}
+    """带瞬时错误重试(实证:423 Locked 偶发且可恢复,一次抖动曾杀死整条链路)。"""
+    last: Exception | None = None
+    for attempt in range(4):
+        req = urllib.request.Request(f"{BASE}/{REPO}{path}", method=method)
+        req.add_header("Authorization", f"Bearer {_token()}")
+        req.add_header("Content-Type", "application/vnd.cnb.api+json")
+        req.add_header("Accept", "application/vnd.cnb.api+json")
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8") if body is not None else None
+        try:
+            with urllib.request.urlopen(req, data=data, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8")
+            return json.loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as exc:
+            last = exc
+            if exc.code not in _TRANSIENT_HTTP or attempt == 3:
+                raise
+            time.sleep(5 * (attempt + 1))
+        except (TimeoutError, urllib.error.URLError) as exc:
+            last = exc
+            if attempt == 3:
+                raise
+            time.sleep(5 * (attempt + 1))
+    raise last  # type: ignore[misc]
 
 
 def list_issues(page_size: int = 100, max_pages: int = 20) -> list[dict]:
@@ -163,18 +182,67 @@ def poll_reply(number: int, timeout_s: float = 600, interval_s: float = 20) -> s
     raise TimeoutError(f"窗口 #{number} {timeout_s}s 内无 NPC 回复")
 
 
-def run_task(instruction: str, work_mode: bool = False, timeout_s: float = 600) -> str:
-    """单任务闭环:全局并发闸内 抢占 → 投递 → 轮询 → 返回 NPC 回复正文。"""
+def run_task(instruction: str, work_mode: bool = False, timeout_s: float = 600,
+             max_retries: int = 2) -> str:
+    """单任务闭环:全局并发闸内 抢占 → 投递 → 轮询 → 返回 NPC 回复正文。
+
+    韧性(实证:死窗/423 抖动曾杀死长链路):超时换窗重试,耗尽抛 TimeoutError;
+    窗口选择经 _checkout 原子占用,并发调用不会撞同一窗口。"""
+    last: TimeoutError | None = None
+    local_blacklist: set[int] = set()
     with _inflight:
-        wins = healthy_free_windows()
-        if not wins:
-            ensure_pool()
-            wins = healthy_free_windows()
-        if not wins:
-            raise RuntimeError("无健康空闲窗口且补开失败")
-        n = wins[0]
-        dispatch(n, instruction, work_mode=work_mode)
-        return poll_reply(n, timeout_s=timeout_s)
+        for _ in range(max_retries + 1):
+            n = _checkout(local_blacklist)
+            if n is None:
+                ensure_pool()
+                _status_cache["ts"] = 0.0
+                n = _checkout(local_blacklist)
+            if n is None:
+                break
+            try:
+                dispatch(n, instruction, work_mode=work_mode)
+                reply = poll_reply(n, timeout_s=timeout_s)
+                _checkin(n)
+                return reply
+            except TimeoutError as exc:
+                local_blacklist.add(n)
+                last = exc
+    raise last or RuntimeError("无健康空闲窗口且补开失败")
+
+
+# ---- 池体检缓存与原子窗口占用(实证:每次调用全量体检太贵且会撞窗) ----
+
+_status_cache: dict[str, Any] = {"ts": 0.0, "data": None}
+_checkout_lock = threading.Lock()
+_checked_out: set[int] = set()
+
+
+def _pool(ttl: float = 60) -> list[dict]:
+    now = time.time()
+    if _status_cache["data"] is None or now - _status_cache["ts"] > ttl:
+        _status_cache["data"] = pool_status()
+        _status_cache["ts"] = now
+    return _status_cache["data"]
+
+
+def _checkout(skip: set[int] | None = None) -> int | None:
+    """原子占用一个健康空闲窗口(评论最少优先);无则 None。"""
+    skip = skip or set()
+    with _checkout_lock:
+        for s in sorted(
+            (w for w in _pool() if w["free"] and 0 <= w["comments"] < MAX_HEALTHY_COMMENTS),
+            key=lambda s: s["comments"],
+        ):
+            if s["number"] not in _checked_out and s["number"] not in skip:
+                _checked_out.add(s["number"])
+                return s["number"]
+    return None
+
+
+def _checkin(n: int) -> None:
+    with _checkout_lock:
+        _checked_out.discard(n)
+    _status_cache["ts"] = 0.0  # 评论数已变,作废旧检
 
 
 def run_batch(instructions: list[str], work_mode: bool = False, timeout_s: float = 900,

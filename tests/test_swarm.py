@@ -177,6 +177,47 @@ def test_all_windows_dead_abstains(monkeypatch):
     assert outs == [None]
 
 
+def test_http_retries_transient_423(monkeypatch):
+    """423/429/5xx 瞬时错误重试(实证:一次 423 抖动杀死过整条链路)。"""
+    import urllib.error as ue
+
+    calls = []
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"ok": true}'
+
+    def fake_urlopen(req, data=None, timeout=30):
+        calls.append(1)
+        if len(calls) < 3:
+            raise ue.HTTPError(req.full_url, 423, "Locked", None, None)
+        return FakeResp()
+
+    monkeypatch.setattr(swarm.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("CNB_TOKEN", "x")
+    monkeypatch.setattr(swarm.time, "sleep", lambda s: None)
+    assert swarm._http("GET", "/-/issues") == {"ok": True}
+    assert len(calls) == 3
+
+
+def test_checkout_atomic_no_collision(fake):
+    """并发占用必须原子:两次 _checkout 拿不同窗口,归还后可再取。"""
+    swarm._checked_out.clear()
+    swarm._status_cache["data"] = None
+    a = swarm._checkout()
+    b = swarm._checkout()
+    assert a != b and {a, b} == {1, 2}
+    swarm._checkin(a)
+    assert swarm._checkout() == a
+    swarm._checked_out.clear()
+
+
 def test_route_swarm_backend(monkeypatch, tmp_path):
     """lab.models.route 对 backend=cnb 的槽位走 swarm,并写 transcript。"""
     from lab import models

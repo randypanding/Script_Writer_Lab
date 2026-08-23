@@ -49,6 +49,29 @@ def test_llm_mid_parallel_build(tmp_path, monkeypatch):
     assert Counter(p["construction"]["op_id"] for p in limited)["D98_llm"] == 1
 
 
+def test_llm_checkpoint_resume(tmp_path, monkeypatch):
+    """断点续跑:已完成项零重复调用(实证:423 曾让 531 次改写成果全损)。"""
+    from types import SimpleNamespace
+
+    import lab.degrade as deg
+
+    fake_llm = SimpleNamespace(mechanism="llm_mid", axis="naturalness",
+                               apply=lambda t, s, seed: t + " [LLM]")
+    monkeypatch.setattr(deg, "REGISTRY", {"D98_llm": fake_llm})
+    store = _make_store(tmp_path, 2)
+    ckpt = tmp_path / "partial.jsonl"
+    p1 = build_corpus_degraded(store, severities=(1.0,), llm_mid=True,
+                               llm_mid_scripts=10, checkpoint=ckpt)
+    assert ckpt.exists() and len(p1) == 2
+    calls = []
+    monkeypatch.setattr(fake_llm, "apply",
+                        lambda *a, **k: (calls.append(1), "x")[1])
+    p2 = build_corpus_degraded(store, severities=(1.0,), llm_mid=True,
+                               llm_mid_scripts=10, checkpoint=ckpt)
+    assert calls == []          # 全部命中断点
+    assert len(p2) == len(p1)   # 结果一致(断点载入 + 无重复)
+
+
 def test_write_jsonl_roundtrip(tmp_path):
     store = _make_store(tmp_path, 3)
     pairs = build_corpus_degraded(store, severities=(1.0,))
