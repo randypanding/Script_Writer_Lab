@@ -247,10 +247,11 @@ def _d08_inject_contradiction(text: str, severity: float, seed: int) -> str:
     rng = random.Random(seed)
     lines = _lines(text)
     candidates: list[tuple[int, str]] = []  # (插入位置=事实行之后, 矛盾句)
+    # 裸矛盾直陈(实证:带"瞒着说的"洗白从句的矛盾会被读成伏笔,判官不报)
     for pat, make in (
-        (_AGE, lambda m: f"(其实他今年分明是{int(m.group(1)) + 20}岁,刚才不过是瞒着说的。)"),
-        (_TIME, lambda m: f"(实际上才过了半个{m.group(2)},所谓{m.group(0)}根本是记错了。)"),
-        (_PLACE, lambda m: f"(他们其实身在千里之外,所谓{m.group(1)}只是说辞。)"),
+        (_AGE, lambda m: f"(他今年{int(m.group(1)) + 20}岁。)"),
+        (_TIME, lambda m: f"(此时距离那件事才过去半天,并非{m.group(0)}。)"),
+        (_PLACE, lambda m: f"(他们此刻根本不在{m.group(1)},而在千里之外。)"),
     ):
         m = pat.search(text)
         if m:

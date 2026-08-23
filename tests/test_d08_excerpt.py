@@ -12,10 +12,12 @@ def test_d08_contradiction_after_fact_line():
     lines = out.splitlines()
     fact_i = next(i for i, ln in enumerate(lines) if "32岁" in ln)
     contra_i = next(i for i, ln in enumerate(lines)
-                    if ln != lines[fact_i] and re.search(r"岁|记错|说辞", ln))
+                    if ln != lines[fact_i] and re.search(r"岁|记错|并非|不在", ln))
     assert contra_i > fact_i, "矛盾句必须出现在被反驳事实之后(同窗可见)"
     ages = set(re.findall(r"(\d+)\s*岁", out))
     assert len(ages) >= 2
+    # 裸矛盾:不得带自我洗白从句(实证:"瞒着说的"式矛盾被读成伏笔,判官不报)
+    assert "瞒" not in out and "记错" not in out and "说辞" not in out
 
 
 def test_d08_no_fact_returns_unchanged():
