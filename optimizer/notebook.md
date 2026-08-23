@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 6
+date: "2026-08-23"
+hypothesis: "测量迭代③(ADR-0002):验真过滤(缺陷必须可测量地落地才进考场)+ D16 公文化后,llm 保真度噪声被剔除,naturalness/transportation 等轴读数应反映判官真实能力"
+surface: op.propose_check_rule
+change: "degrade.VERIFY 13 个验真谓词(D04 句长 CV/D13 对白行数等);D06/D11 无验真器不进考场;新增 D16_formalize_tone(确定性,剥语气词);run_exam_packed 只纳验真对"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "v5 成绩结构分析:确定性明显缺陷轴最高(placement 0.85/l0_dialogue 0.77),llm_mid 保真度拖累轴最低(transportation 0.40);D08 裸矛盾使 l0_fact 0.48→0.60。本轮起考分=验真对上的灵敏度。若验真后多数轴仍 <0.85,则瓶颈是随机后端能力本身——届时带着数据向人类申请契约调整(k=9 或改门限)。"
+```
+```yaml
 round: 5
 date: "2026-08-23"
 hypothesis: "测量迭代③:判官人格 v2(先逐信号对比再作答)+ D08 裸矛盾(去除自我洗白从句)后,l0_fact 与自然度类轴灵敏度应显著回升"
