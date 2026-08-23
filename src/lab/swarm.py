@@ -165,9 +165,12 @@ def is_free(number: int, comments: list[dict] | None = None) -> bool:
     return comments[-1].get("author", {}).get("is_npc") is True
 
 
-def dispatch(number: int, instruction: str, work_mode: bool = False) -> None:
-    """投递即锁定窗口。纯问答(投票/改写)用 work_mode=False,沙箱执行才开 True。"""
-    body = instruction if instruction.lstrip().startswith("@") else f"{MENTION} {instruction}"
+def dispatch(number: int, instruction: str, work_mode: bool = False,
+             mention: str | None = None) -> None:
+    """投递即锁定窗口。纯问答(投票/改写)用 work_mode=False,沙箱执行才开 True。
+    mention 指定 NPC 角色(判官人格只用于评判;改写/生成用 @CodeBuddy 或写手人格)。"""
+    m = mention or MENTION
+    body = instruction if instruction.lstrip().startswith("@") else f"{m} {instruction}"
     _http("POST", f"/-/issues/{number}/comments", {"body": body, "work_mode": bool(work_mode)})
 
 
@@ -183,11 +186,13 @@ def poll_reply(number: int, timeout_s: float = 600, interval_s: float = 20) -> s
 
 
 def run_task(instruction: str, work_mode: bool = False, timeout_s: float = 600,
-             max_retries: int = 2) -> str:
+             max_retries: int = 2, mention: str | None = None) -> str:
     """单任务闭环:全局并发闸内 抢占 → 投递 → 轮询 → 返回 NPC 回复正文。
 
     韧性(实证:死窗/423 抖动曾杀死长链路):超时换窗重试,耗尽抛 TimeoutError;
-    窗口选择经 _checkout 原子占用,并发调用不会撞同一窗口。"""
+    窗口选择经 _checkout 原子占用,并发调用不会撞同一窗口。
+    mention:NPC 角色路由(判官人格只用于评判;生成/改写须用 @CodeBuddy 或写手人格,
+    否则人格会污染任务——实证:改写指令收到字母票)。"""
     last: TimeoutError | None = None
     local_blacklist: set[int] = set()
     with _inflight:
@@ -200,7 +205,7 @@ def run_task(instruction: str, work_mode: bool = False, timeout_s: float = 600,
             if n is None:
                 break
             try:
-                dispatch(n, instruction, work_mode=work_mode)
+                dispatch(n, instruction, work_mode=work_mode, mention=mention)
                 reply = poll_reply(n, timeout_s=timeout_s)
                 _checkin(n)
                 return reply

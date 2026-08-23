@@ -84,7 +84,8 @@ def route(
     if client is None and cfg.get("backend") == "cnb":
         from lab.swarm import run_task  # 延迟导入:swarm 反向 import 本模块
 
-        text = run_task((f"{system}\n\n" if system else "") + prompt, work_mode=False)
+        text = run_task((f"{system}\n\n" if system else "") + prompt, work_mode=False,
+                        mention=cfg.get("mention"))  # 槽位可指定 NPC 人格(判官/写手)
         _write_transcript(
             _db_path(db_path),
             (time.time(), caller, str(cfg.get("model", "codebuddy")), prompt, text,

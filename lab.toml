@@ -15,5 +15,6 @@ judge_dev = { model = "deepseek-r1", api_key_env = "JUDGE_DEV_API_KEY", api_base
 judge_sealed = { model = "glm-5", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
 synthesis = { model = "qwen3-coder-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
 # CNB 免费沙箱集群(随机后端模型,零成本):dev 判官投票/合成改写用;sealed 永不用它
-judge_dev_swarm = { backend = "cnb", model = "codebuddy-random" }
-synthesis_swarm = { backend = "cnb", model = "codebuddy-random" }
+# mention 路由 NPC 人格:判官人格只用于评判;改写/生成用系统 @CodeBuddy(实证:判官人格会把改写指令答成字母票)
+judge_dev_swarm = { backend = "cnb", model = "codebuddy-random", mention = "@Cloudbird-Software/swarm-pool(判官)" }
+synthesis_swarm = { backend = "cnb", model = "codebuddy-random", mention = "@CodeBuddy" }

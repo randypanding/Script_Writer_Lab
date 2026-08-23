@@ -23,6 +23,18 @@ def test_d08_no_fact_returns_unchanged():
     assert REGISTRY["D08_inject_contradiction"].apply(src, severity=1, rng_seed=1) == src
 
 
+def test_llm_rewrite_length_guard(monkeypatch):
+    """改写回复过短(人格污染/截断)→ 重试一次后原样返回,不造垃圾对(实证:判官人格回 3 字符)。"""
+    import lab.models as m
+    from lab.degrade import _llm_rewrite
+
+    monkeypatch.setattr(m, "route", lambda *a, **k: "A")
+    src = "原文" * 100
+    assert _llm_rewrite("拍平节奏", src, 1.0, 7) == src
+    monkeypatch.setattr(m, "route", lambda *a, **k: "改写后" + "文" * 200)
+    assert _llm_rewrite("拍平节奏", src, 1.0, 7) != src
+
+
 _META_HEAD = (
     "穿到之我的老婆是女皇 恬作品\n1、基本信息 ▲类型】 古装竖屏微短剧\n"
     "▲故事亮点】 穿越经营\n▲一句话梗概】 金融天才穿越\n人物表:林茵 封肆\n"

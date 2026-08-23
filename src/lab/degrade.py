@@ -376,7 +376,12 @@ def _llm_rewrite(instruction: str, text: str, severity: float, seed: int) -> str
     # 要更高保真退化,设 DEGRADE_LLM_SLOT 到付费槽位。
     slot = os.environ.get("DEGRADE_LLM_SLOT", "synthesis_swarm")
     prompt = (_LLM_PRELUDE + f"退化指令:{instruction}(强度 {severity:.2f},随机种子 {seed})\n---\n{text}")
-    return route(slot, prompt, caller="lab.degrade", temperature=0.7)
+    for _attempt in range(2):
+        out = route(slot, prompt, caller="lab.degrade", temperature=0.7)
+        # 人格污染/截断防护:改写长度不得小于原文 1/3(实证:判官人格回 3 字符字母票)
+        if len(out.strip()) >= max(100, len(text) // 3):
+            return out
+    return text  # 两次都不合格 → 原样返回(构建方跳过,不造垃圾对)
 
 
 def _d03_flatten_cliffhanger(text: str, severity: float, seed: int) -> str:
