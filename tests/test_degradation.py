@@ -35,9 +35,9 @@ def test_deterministic_ops_reproducible(op_id):
     a = op.apply(FIXTURE_TEXT, severity=1, rng_seed=7)
     b = op.apply(FIXTURE_TEXT, severity=1, rng_seed=7)
     assert a == b, "同种子必须可复现"
-    if op_id in ("D08_inject_contradiction", "D14_setup_cut"):
-        # D08:无窗内可反驳事实时原样返回;D14:无【回收】标记时原样返回(降级删除=假缺陷,验真实证 0/682)。
-        # 该 fixture 无 D08 事实、无 D14 标记。有靶向时的行为见 test_d08_excerpt.py / test_verify.py
+    if op_id in ("D08_inject_contradiction", "D14_setup_cut", "D17_decolloquialize"):
+        # D08:无窗内可反驳事实时原样返回;D14:无【回收】标记时原样返回;D17:无口语词时原样返回。
+        # 该 fixture 均无对应靶向。有靶向时的行为见 test_verify.py / test_d08_excerpt.py
         return
     assert a != FIXTURE_TEXT, "退化必须真的改变文本"
 

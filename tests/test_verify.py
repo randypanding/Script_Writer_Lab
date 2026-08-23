@@ -9,6 +9,16 @@ def test_d16_strips_modal_particles():
     assert verify_pair("D16_formalize_tone", src, out)
 
 
+def test_d17_decolloquialize():
+    src = "小满:你这是啥意思?\n阿婆:咱不管他咋想的。\n旁白行不含对白。"
+    out = REGISTRY["D17_decolloquialize"].apply(src, severity=1, rng_seed=1)
+    assert "什么" in out or "我们" in out or "怎么" in out
+    assert out != src
+    assert verify_pair("D17_decolloquialize", src, out)
+    src2 = "小满:正常对白,没有口语标记。"
+    assert REGISTRY["D17_decolloquialize"].apply(src2, severity=1, rng_seed=1) == src2
+
+
 def test_verify_pair_semantics():
     # 通过:缺陷真的落地
     assert verify_pair("D12_info_stuffing", "短" * 100, "短" * 100 + "注水" * 40)

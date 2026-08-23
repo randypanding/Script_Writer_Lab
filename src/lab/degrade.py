@@ -413,6 +413,39 @@ def _d13_dialogue_to_narration(text: str, severity: float, seed: int) -> str:
 _MODAL_PARTICLES = "呢啊啦嘛吧哦呀呐哈"
 _DIALOGUE_LINE_LOCAL = re.compile(r"^[一-龥A-Za-z]{1,8}[::]\S")
 
+_COLLOQ_SUBS: list[tuple[str, str]] = [
+    ("啥", "什么"), ("咋", "怎么"), ("咱", "我们"), ("为啥", "为什么"),
+    ("别介", "别这样"), ("得亏", "幸亏"), ("明儿", "明天"), ("昨儿", "昨天"),
+    ("挺好的", "非常好"), ("很不错", "十分好"), ("干嘛", "做什么"),
+    ("哪儿", "哪里"), ("这儿", "这里"), ("那儿", "那里"),
+]
+
+
+def _d17_decolloquialize(text: str, severity: float, seed: int) -> str:
+    """D17 书面化(naturalness 广覆盖缺陷源):对白中的口语词替换为书面词。
+
+    实证背景:D16(剥语气词)在真实语料上命中率太低(naturalness 只剩 2 对);
+    口语替换几乎必中任何真实对白。"""
+    rng = random.Random(seed)
+    k = max(1, round(3 * max(0.3, severity)))
+    targets = [ln for ln in _lines(text) if _DIALOGUE_LINE_LOCAL.match(ln.strip())
+               and any(a in ln for a, _ in _COLLOQ_SUBS)]
+    if not targets:
+        return text
+    out = _lines(text)
+    for ln in targets[:k]:
+        idx = out.index(ln)
+        for a, b in rng.sample(_COLLOQ_SUBS, len(_COLLOQ_SUBS)):
+            if a in ln:
+                ln = ln.replace(a, b, 1)
+                break
+        out[idx] = ln
+    return _join(out)
+
+
+def _colloq_hits(text: str) -> int:
+    return sum(text.count(a) for a, _ in _COLLOQ_SUBS)
+
 
 def _d16_formalize_tone(text: str, severity: float, seed: int) -> str:
     """D16 公文化(naturalness 的确定性、可验真缺陷源):剥掉对白句末语气词。
@@ -469,6 +502,7 @@ VERIFY: dict[str, Callable[[str, str], bool]] = {
     "D14_setup_cut": lambda o, d: "【回收】" not in d and "【回收】" in o,
     "D15_producibility_break": lambda o, d: len(d) > len(o),
     "D16_formalize_tone": lambda o, d: _modal_hits(d) < _modal_hits(o),
+    "D17_decolloquialize": lambda o, d: _colloq_hits(d) < _colloq_hits(o),
 }
 
 
@@ -504,6 +538,7 @@ _IMPL: dict[str, Callable[[str, float, int], str]] = {
     "D14_setup_cut": _d14_setup_cut,
     "D15_producibility_break": _d15_producibility_break,
     "D16_formalize_tone": _d16_formalize_tone,
+    "D17_decolloquialize": _d17_decolloquialize,
 }
 
 

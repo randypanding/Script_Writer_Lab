@@ -76,3 +76,7 @@ operators:
     axis: naturalness
     mechanism: deterministic
     desc: 公文化:剥掉对白句末语气词(呢/啊/啦/嘛/吧等),让台词像公文
+  - id: D17_decolloquialize
+    axis: naturalness
+    mechanism: deterministic
+    desc: 书面化:对白口语词替换为书面词(啥→什么/咋→怎么/咱→我们等)
