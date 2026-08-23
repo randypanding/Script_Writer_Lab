@@ -463,7 +463,9 @@ def main(argv: list[str] | None = None) -> int:
         report = run_exam(cfg, pairs, other, workers=args.workers)
     render_exam_md(report, args.out)
     print(json.dumps(report, ensure_ascii=False)[:2000])
-    return 0 if report.get("pass") else 1
+    # 报告产出即成功(0);"门限未过"是合法终态,裁决在报告的 pass 字段里。
+    # 实证:rc=1 被监督器当崩溃,白重建重考了三轮。
+    return 0
 
 
 if __name__ == "__main__":
