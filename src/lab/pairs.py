@@ -239,9 +239,7 @@ def build_corpus_degraded(
         print(f"[pairs] llm_mid 待改写 {len(llm_jobs)} 项(断点跳过已完成)@ "
               f"{time.strftime('%H:%M:%S')}", flush=True)
         with ThreadPoolExecutor(max_workers=24) as ex:
-            done_n = 0
-            for res in ex.map(_run_llm, llm_jobs):
-                done_n += 1
+            for done_n, res in enumerate(ex.map(_run_llm, llm_jobs), 1):
                 if res is not None:
                     pairs.append(res)
                 if done_n % 100 == 0:
