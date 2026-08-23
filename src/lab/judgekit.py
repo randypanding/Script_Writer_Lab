@@ -252,7 +252,7 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
                                         signals=signals)
             for chunk in chunks
         ]
-        replies = swarm.run_batch(instructions, workers=workers)
+        replies = swarm.run_batch(instructions, workers=workers, timeout_s=300)
         votes: dict[tuple[int, int], list[str]] = {}
         n_abstain = 0
         for chunk, reply in zip(chunks, replies, strict=True):
