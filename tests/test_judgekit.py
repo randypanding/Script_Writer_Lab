@@ -166,9 +166,34 @@ def test_run_exam_packed_aggregates(monkeypatch):
     report = jk.run_exam_packed({"model_slot": "judge_dev_swarm", "k": 2}, pairs, pack_size=3)
     ax = report["axes"]["prose_craft"]
     assert ax["sensitivity"] == 1.0      # 所有投票判对(原版胜)
-    assert ax["position_bias"] == 0.0    # 两方向结论一致
+    assert ax["position_bias"] == 0.0    # 总体级:两方向胜率一致
+    assert ax["pair_flip_rate"] == 0.0
     assert ax["pass"] is False           # n=4 < min_exam_pairs_per_axis=100
     assert report["engine"] == "k_sample_vote_packed"
+
+
+def test_run_exam_packed_position_bias_population(monkeypatch):
+    """总体级位置偏差:判官永远选第一段 → bias=1.0 且挂门限;
+    旧逐对翻转率在 k=5 下会把"题难"误报成"偏见",故只做参考。"""
+    import lab.judgekit as jk
+    from lab import swarm
+    from lab.pairs import build_pair
+
+    pairs = [
+        build_pair(axis="prose_craft", a_text=f"……【甲】原版{i}……", b_text=f"……【乙】退化{i}……",
+                   label="a_win", construction={"kind": "corpus_degraded", "op_id": "D05_inject_slop",
+                                                "severity": 1,
+                                                "source_script_id": f"scr:pb{i:024d}"},
+                   split="exam")
+        for i in range(4)
+    ]
+    monkeypatch.setattr(swarm, "run_batch",
+                        lambda instructions, **kw: [" ".join(f"{g}:A" for g in range(1, 6))
+                                                    for _ in instructions])
+    report = jk.run_exam_packed({"model_slot": "judge_dev_swarm", "k": 2}, pairs, pack_size=5)
+    ax = report["axes"]["prose_craft"]
+    assert ax["position_bias"] == 1.0   # 永远选第一段 = 最大位置偏差
+    assert ax["pass"] is False
 
 
 def test_run_exam_packed_excludes_corpus_vs_gen(monkeypatch):

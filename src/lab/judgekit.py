@@ -266,23 +266,32 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
         correct = flips = 0
         block_pairs = [p for p in pairs if p["construction"].get("op_id") in BLOCK_OPS]
         block_correct = 0
+        rates0: list[float] = []
+        rates1: list[float] = []
         for i, p in enumerate(pairs):
             v0, v1 = votes.get((i, 0), []), votes.get((i, 1), [])
             rate0 = sum(x == "A" for x in v0) / len(v0) if v0 else 0.5  # 方向0:a 在第一段
             rate1 = sum(x == "B" for x in v1) / len(v1) if v1 else 0.5  # 方向1:a 在第二段
+            rates0.append(rate0)
+            rates1.append(rate1)
             ok = (rate0 + rate1) / 2 > 0.5
             correct += ok
             if p["construction"].get("op_id") in BLOCK_OPS:
                 block_correct += ok
-            flips += (rate0 > 0.5) != (rate1 > 0.5)  # 两方向结论不一致 = 位置偏差事件
+            flips += (rate0 > 0.5) != (rate1 > 0.5)
         sensitivity = correct / n if n else 0.0
         block_sensitivity = (block_correct / len(block_pairs)) if block_pairs else None
-        position_bias = flips / n if n else 1.0
+        # 位置偏差用总体级(门限项):|E[a 先放胜率] - E[a 后放胜率]|。
+        # 逐对翻转率对"随机后端集合"会把"题难"误报成"偏见"(实证:k=5 下翻转率 0.4+
+        # 但总体偏差可接近 0),只作参考,不做门限。
+        pair_flip_rate = flips / n if n else 1.0
+        position_bias = (abs(sum(rates0) / n - sum(rates1) / n)) if n else 1.0
         report["axes"][axis] = {
             "n_pairs": n,
             "sensitivity": round(sensitivity, 4),
             "block_sensitivity": round(block_sensitivity, 4) if block_sensitivity is not None else None,
             "position_bias": round(position_bias, 4),
+            "pair_flip_rate": round(pair_flip_rate, 4),  # 参考项,不做门限
             "abstain_chunks": n_abstain,
             "transitivity": None,
             "pass": (
