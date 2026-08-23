@@ -228,13 +228,22 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
     # 留在 train/val 当训练料,不进考场。
     excluded = sum(1 for p in exam_pairs if p["construction"].get("kind") == "corpus_vs_gen")
     exam_pairs = [p for p in exam_pairs if p["construction"].get("kind") != "corpus_vs_gen"]
+    # ADR-0002 验真过滤:只有"缺陷可测量地真的落进去了"的对才进考场
+    # (实证:随机后端的 llm 改写保真度不稳,未验真对的灵敏度读数不可信)。
+    from lab.degrade import verify_pair
+
+    n_all = len(exam_pairs)
+    exam_pairs = [p for p in exam_pairs
+                  if verify_pair(p["construction"].get("op_id"), p["a_text"], p["b_text"])]
+    unverified = n_all - len(exam_pairs)
     by_axis: dict[str, list[dict[str, Any]]] = {}
     for p in exam_pairs:
         by_axis.setdefault(p["axis"], []).append(p)
 
     report: dict[str, Any] = {"axes": {}, "gates": gates, "judge": judge_cfg.get("model_slot"),
                               "engine": "k_sample_vote_packed", "transitivity_skipped": True,
-                              "corpus_vs_gen_excluded": excluded}
+                              "corpus_vs_gen_excluded": excluded,
+                              "unverified_excluded": unverified}
     for axis, pairs in sorted(by_axis.items()):
         print(f"[exam] 开始轴 {axis}: {len(pairs)} 对 ×2 方向 ×k{k} @ {time.strftime('%H:%M:%S')}",
               flush=True)  # 进度行 → 监督器日志(打包路径不写 transcripts,心跳盲区实证)

@@ -144,7 +144,7 @@ def test_run_exam_packed_aggregates(monkeypatch):
     from lab.pairs import build_pair
 
     pairs = [
-        build_pair(axis="prose_craft", a_text=f"……【甲】原版文本{i}……", b_text=f"……【乙】退化文本{i}……",
+        build_pair(axis="prose_craft", a_text=f"……【甲】原版文本{i}……", b_text=f"……【乙】退化文本{i},命运的齿轮开始转动……",
                    label="a_win", construction={"kind": "corpus_degraded", "op_id": "D05_inject_slop",
                                                 "severity": 1,
                                                 "source_script_id": f"scr:pk{i:024d}"},
@@ -180,7 +180,7 @@ def test_run_exam_packed_position_bias_population(monkeypatch):
     from lab.pairs import build_pair
 
     pairs = [
-        build_pair(axis="prose_craft", a_text=f"……【甲】原版{i}……", b_text=f"……【乙】退化{i}……",
+        build_pair(axis="prose_craft", a_text=f"……【甲】原版{i}……", b_text=f"……【乙】退化{i},命运的齿轮开始转动……",
                    label="a_win", construction={"kind": "corpus_degraded", "op_id": "D05_inject_slop",
                                                 "severity": 1,
                                                 "source_script_id": f"scr:pb{i:024d}"},
@@ -205,7 +205,7 @@ def test_run_exam_packed_excludes_corpus_vs_gen(monkeypatch):
     from lab.pairs import build_pair
 
     def _mk(kind, i):
-        return build_pair(axis="prose_craft", a_text=f"……【甲】原版{i}……", b_text=f"……【乙】退化{i}……",
+        return build_pair(axis="prose_craft", a_text=f"……【甲】原版{i}……", b_text=f"……【乙】退化{i},命运的齿轮开始转动……",
                           label="a_win", construction={"kind": kind, "op_id": "D05_inject_slop",
                                                        "severity": 1,
                                                        "source_script_id": f"scr:ex{i:024d}"},
@@ -237,7 +237,7 @@ def test_run_exam_mock_report(tmp_path):
     for i in range(6):
         op = list(REGISTRY.values())[i % len(REGISTRY)]
         pairs.append(build_pair(
-            axis=op.axis, a_text=f"……【甲】原版文本{i}……", b_text=f"……【乙】退化文本{i}……",
+            axis=op.axis, a_text=f"……【甲】原版文本{i}……", b_text=f"……【乙】退化文本{i},命运的齿轮开始转动……",
             label="a_win", construction={"kind": "corpus_degraded", "op_id": op.id,
                                          "severity": 0.5, "source_script_id": f"scr:{i:025d}"},
             split="exam"))

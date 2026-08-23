@@ -72,3 +72,7 @@ operators:
     axis: producibility
     mechanism: deterministic
     desc: 注入超预算制作元素(群演规模/特效/外场景关键词)
+  - id: D16_formalize_tone
+    axis: naturalness
+    mechanism: deterministic
+    desc: 公文化:剥掉对白句末语气词(呢/啊/啦/嘛/吧等),让台词像公文

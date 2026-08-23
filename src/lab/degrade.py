@@ -410,6 +410,79 @@ def _d13_dialogue_to_narration(text: str, severity: float, seed: int) -> str:
         "把大部分对白改写成旁白叙述(保留说话人身份信息但不再用对白格式),信息不变", text, severity, seed)
 
 
+_MODAL_PARTICLES = "呢啊啦嘛吧哦呀呐哈"
+_DIALOGUE_LINE_LOCAL = re.compile(r"^[一-龥A-Za-z]{1,8}[::]\S")
+
+
+def _d16_formalize_tone(text: str, severity: float, seed: int) -> str:
+    """D16 公文化(naturalness 的确定性、可验真缺陷源):剥掉对白句末语气词。
+
+    实证背景:naturalness 轴此前只有 llm_mid 的 D06,随机后端改写保真度不稳,
+    导致该轴考试灵敏度读数不可信。"""
+    rng = random.Random(seed)
+    out = []
+    for ln in _lines(text):
+        s = ln.strip()
+        if _DIALOGUE_LINE_LOCAL.match(s) and rng.random() < max(0.3, severity):
+            ln = re.sub(rf"[{_MODAL_PARTICLES}]+([!?。！？]{{0,2}}\s*)$", r"\1", ln)
+        out.append(ln)
+    return _join(out)
+
+
+def _sent_cv(text: str) -> float:
+    lens = [len(s) for s in re.split(r"[。!?…!??]+", text) if len(s.strip()) >= 2]
+    if len(lens) < 3:
+        return 0.0
+    mean = sum(lens) / len(lens)
+    var = sum((x - mean) ** 2 for x in lens) / len(lens)
+    return (var ** 0.5) / mean if mean else 0.0
+
+
+def _slop_hits(text: str) -> int:
+    return sum(text.count(w) for w in _slop_lexicon())
+
+
+def _modal_hits(text: str) -> int:
+    return len(re.compile(f"[{_MODAL_PARTICLES}]").findall(text))
+
+
+# ---- 缺陷验真(ADR-0002):只有"缺陷可测量地真的落进去了"的对才进考场 ----
+# 无验真器的算子(D06/D11,llm_mid 保真度不可测)的对不进考场——宁可缺考,不造假分。
+VERIFY: dict[str, Callable[[str, str], bool]] = {
+    "D01_shuffle_beats": lambda o, d: sorted(o.split()) == sorted(d.split()) and o != d,
+    "D02_remove_hook": lambda o, d: len(_lines(d)) < len(_lines(o)),
+    "D03_flatten_cliffhanger": lambda o, d: (
+        bool(re.search(r"[?!?!]", o[-150:]))
+        and not re.search(r"[?!?!][」』”]?\s*$", d.strip())),
+    "D04_flatten_rhythm": lambda o, d: _sent_cv(o) > 0 and _sent_cv(d) < _sent_cv(o) * 0.95,
+    "D05_inject_slop": lambda o, d: _slop_hits(d) > _slop_hits(o),
+    "D07_pov_break": lambda o, d: o != d,
+    "D08_inject_contradiction": lambda o, d: o != d and len(_lines(d)) > len(_lines(o)),
+    "D09_brand_cut": lambda o, d: len(_lines(d)) < len(_lines(o)),
+    "D10_brand_overstuff": lambda o, d: len(d) > len(o),
+    "D12_info_stuffing": lambda o, d: len(d) >= len(o) * 1.1,
+    "D13_dialogue_to_narration": lambda o, d: (
+        sum(1 for ln in _lines(d) if _DIALOGUE_LINE_LOCAL.match(ln.strip()))
+        < sum(1 for ln in _lines(o) if _DIALOGUE_LINE_LOCAL.match(ln.strip()))),
+    "D14_setup_cut": lambda o, d: "【回收】" not in d and "【回收】" in o,
+    "D15_producibility_break": lambda o, d: len(d) > len(o),
+    "D16_formalize_tone": lambda o, d: _modal_hits(d) < _modal_hits(o),
+}
+
+
+def verify_pair(op_id: str | None, orig: str, degraded: str) -> bool:
+    """验真入口:无 op_id(corpus_vs_gen)或无验真器 → False(不进考场)。"""
+    if op_id is None:
+        return False
+    v = VERIFY.get(op_id)
+    if v is None:
+        return False
+    try:
+        return bool(v(orig, degraded))
+    except Exception:  # noqa: BLE001 —— 验真器异常按未验真处理,不放行
+        return False
+
+
 # ---- 注册表(与 spec 一一对应,导入时强制) ----
 
 _IMPL: dict[str, Callable[[str, float, int], str]] = {
@@ -428,6 +501,7 @@ _IMPL: dict[str, Callable[[str, float, int], str]] = {
     "D13_dialogue_to_narration": _d13_dialogue_to_narration,
     "D14_setup_cut": _d14_setup_cut,
     "D15_producibility_break": _d15_producibility_break,
+    "D16_formalize_tone": _d16_formalize_tone,
 }
 
 
