@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 5
+date: "2026-08-23"
+hypothesis: "测量迭代③:判官人格 v2(先逐信号对比再作答)+ D08 裸矛盾(去除自我洗白从句)后,l0_fact 与自然度类轴灵敏度应显著回升"
+surface: op.propose_check_rule
+change: "swarm-pool 判官 persona v2(reasoning-before-letter);degrade D08 裸矛盾直陈;judgekit 退出语义(报告产出=rc0,门限未过是合法终态)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "v4 全考成绩(10 轴,新度量+排除反转标签):placement 0.78 / l0_dialogue 0.67 / l0_brand 0.63 / l0_structure 0.57 / transportation 0.49 / producibility 0.50 / naturalness 0.48 / prose_craft 0.46 / l0_fact 0.48 / hook 0.40;总体级位置偏差 0.02-0.43(多轴已比旧指标干净)。运维事故:考试 rc=1(门限未过)被监督器当崩溃白跑三轮——已修(退出语义)。教训:守门指标的'未过'不是系统故障,要在语义层分开。"
+```
+```yaml
 round: 4
 date: "2026-08-23"
 hypothesis: "测量迭代②:v3 考试坐实 corpus_vs_gen 构造标签与判官偏好系统性相反(naturalness/l0_dialogue 灵敏度 0.00/0.01 且位置偏差低=稳定判反);考试改为只用退化锚,缺失轴由 llm_mid 算子经 CNB 免费改写补齐"
