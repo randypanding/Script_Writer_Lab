@@ -236,6 +236,8 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
                               "engine": "k_sample_vote_packed", "transitivity_skipped": True,
                               "corpus_vs_gen_excluded": excluded}
     for axis, pairs in sorted(by_axis.items()):
+        print(f"[exam] 开始轴 {axis}: {len(pairs)} 对 ×2 方向 ×k{k} @ {time.strftime('%H:%M:%S')}",
+              flush=True)  # 进度行 → 监督器日志(打包路径不写 transcripts,心跳盲区实证)
         # 每对 × 两方向 × k 次 = 独立投票项;方向 1 即位置交换
         items: list[tuple[int, int, str, str]] = []
         for i, p in enumerate(pairs):
@@ -301,6 +303,8 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
                 and position_bias <= gates["position_bias"]
             ),
         }
+        print(f"[exam] 完成轴 {axis}: 灵敏度 {sensitivity:.2f} 位置偏差 {position_bias:.2f} "
+              f"弃票 {n_abstain} @ {time.strftime('%H:%M:%S')}", flush=True)
     report["pass"] = bool(report["axes"]) and all(a["pass"] for a in report["axes"].values())
     return report
 
