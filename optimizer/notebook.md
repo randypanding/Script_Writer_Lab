@@ -30,6 +30,17 @@ sealed_score: null
 notes: "v5 成绩结构分析:确定性明显缺陷轴最高(placement 0.85/l0_dialogue 0.77),llm_mid 保真度拖累轴最低(transportation 0.40);D08 裸矛盾使 l0_fact 0.48→0.60。本轮起考分=验真对上的灵敏度。若验真后多数轴仍 <0.85,则瓶颈是随机后端能力本身——届时带着数据向人类申请契约调整(k=9 或改门限)。"
 ```
 ```yaml
+round: 6
+date: "2026-08-24"
+hypothesis: "测量迭代③(ADR-0002):验真过滤(缺陷必须可测量地落地才进考场)+ D16/D17 后,考分反映判官真实能力;结果:transportation 0.89 过闸,证实随机后端工作区间 0.5-0.77 是能力天花板"
+surface: op.propose_check_rule
+change: "degrade.VERIFY 验真谓词;D14 无标记停用(682 假缺陷实证);llm_mid 适用前提;D16/D17 naturalness 缺陷源;run_exam_packed 只纳验真对"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "v6 全表:transportation 0.89✓ / placement 0.77 / l0_dialogue 0.75 / 其余 0.5-0.65。运营决策(不动契约,人类可否决):优化循环判分面=transportation+placement+l0_dialogue 三轴联合胜率(判官可用),其余轴只报告。判官天花板归因:非投票机制问题(机制逐级验证过),是随机后端能力上限;k=9 或契约调整属人类决策,暂不申请——先用可测轴把优化循环跑起来。naturalness 覆盖由 D17 下轮补齐。"
+```
+```yaml
 round: 5
 date: "2026-08-23"
 hypothesis: "测量迭代③:判官人格 v2(先逐信号对比再作答)+ D08 裸矛盾(去除自我洗白从句)后,l0_fact 与自然度类轴灵敏度应显著回升"
