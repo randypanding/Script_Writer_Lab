@@ -14,11 +14,12 @@ while [ "$attempt" -lt "$max" ]; do
   attempt=$((attempt + 1))
   printf '{"state":"running","attempt":%d,"ts":%s}\n' "$attempt" "$(date +%s)" > "$STATUS"
   echo "=== attempt $attempt $(date -Is) ===" >> "$LOG"
-  if "$@" >> "$LOG" 2>&1; then
+  "$@" >> "$LOG" 2>&1
+  rc=$?  # 先捕获——bash 的 if 无分支命中会返回 0,把 rc 记成 0(实证)
+  if [ "$rc" -eq 0 ]; then
     printf '{"state":"ok","attempt":%d,"ts":%s}\n' "$attempt" "$(date +%s)" > "$STATUS"
     exit 0
   fi
-  rc=$?
   echo "=== attempt $attempt failed rc=$rc $(date -Is) ===" >> "$LOG"
   sleep $((attempt * 30))
 done
