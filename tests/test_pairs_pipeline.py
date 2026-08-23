@@ -72,6 +72,20 @@ def test_llm_checkpoint_resume(tmp_path, monkeypatch):
     assert len(p2) == len(p1)   # 结果一致(断点载入 + 无重复)
 
 
+def test_llm_job_timeout_skips_not_crashes(tmp_path, monkeypatch):
+    """单个改写超时/死窗 → 跳过该对,不拖死整场(实证:run_task 超时曾崩掉整个 build)。"""
+    from types import SimpleNamespace
+
+    import lab.degrade as deg
+
+    fake_llm = SimpleNamespace(mechanism="llm_mid", axis="naturalness",
+                               apply=lambda *a, **k: (_ for _ in ()).throw(TimeoutError("死窗")))
+    monkeypatch.setattr(deg, "REGISTRY", {"D98_llm": fake_llm})
+    store = _make_store(tmp_path, 2)
+    pairs = build_corpus_degraded(store, severities=(1.0,), llm_mid=True, llm_mid_scripts=10)
+    assert pairs == []  # 全部跳过,无崩溃
+
+
 def test_write_jsonl_roundtrip(tmp_path):
     store = _make_store(tmp_path, 3)
     pairs = build_corpus_degraded(store, severities=(1.0,))

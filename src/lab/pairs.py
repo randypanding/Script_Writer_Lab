@@ -217,7 +217,10 @@ def build_corpus_degraded(
     def _run_llm(job: tuple[str, str, str, float]) -> dict[str, Any] | None:
         sid, fragment, op_id, sev = job
         op = REGISTRY[op_id]
-        degraded = op.apply(fragment, sev, rng_seed)
+        try:
+            degraded = op.apply(fragment, sev, rng_seed)
+        except (TimeoutError, OSError, RuntimeError):
+            return None  # 单个改写失败(死窗/超时)跳过,不拖死整场(实证)
         if degraded == fragment:
             return None
         pair = build_pair(axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
