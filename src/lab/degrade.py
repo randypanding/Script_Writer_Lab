@@ -334,16 +334,11 @@ def _d12_info_stuffing(text: str, severity: float, seed: int) -> str:
 
 def _d14_setup_cut(text: str, severity: float, seed: int) -> str:
     # 语义约定(parsing_conventions §D14):删除【回收】标记行(整行),不受 30% 上限约束
+    # 无标记文本不适用:降级删最长行造出的不是"悬空伏笔"缺陷,是随机删除(验真数据实证:0/682)
     lines = _lines(text)
-    has = [ln for ln in lines if "【回收】" in ln]
-    out = [ln for ln in lines if "【回收】" not in ln]
-    if not has:
-        # 无标记可删时降级:删掉最长的对白行(等效于拆掉一次承接),仍整行删
-        idx = max((i for i, ln in enumerate(lines) if _is_dialogue_line(ln)), key=lambda i: len(lines[i]), default=-1)
-        if idx < 0:
-            return _join(_fallback_delete_longest(lines))
-        out = [ln for i, ln in enumerate(lines) if i != idx]
-    return _join(out)
+    if not any("【回收】" in ln for ln in lines):
+        return text
+    return _join([ln for ln in lines if "【回收】" not in ln])
 
 
 _PROD_BREAKS = [
@@ -377,8 +372,12 @@ def _llm_rewrite(instruction: str, text: str, severity: float, seed: int) -> str
     # 要更高保真退化,设 DEGRADE_LLM_SLOT 到付费槽位。
     slot = os.environ.get("DEGRADE_LLM_SLOT", "synthesis_swarm")
     prompt = (_LLM_PRELUDE + f"退化指令:{instruction}(强度 {severity:.2f},随机种子 {seed})\n---\n{text}")
+    # 污染特征:NPC 提及前缀残留 / 人格拒答(实证:判官人格曾回"我无法执行这个任务")
+    bad_marks = ("@cnb.", "无法执行", "角色设定", "判官", "纪律")
     for _attempt in range(2):
         out = route(slot, prompt, caller="lab.degrade", temperature=0.7)
+        if any(m in out for m in bad_marks):
+            continue
         # 人格污染/截断防护:改写长度不得小于原文 1/3(实证:判官人格回 3 字符字母票)
         if len(out.strip()) >= max(100, len(text) // 3):
             return out
@@ -407,7 +406,8 @@ def _d11_pacing_flatten(text: str, severity: float, seed: int) -> str:
 
 def _d13_dialogue_to_narration(text: str, severity: float, seed: int) -> str:
     return _llm_rewrite(
-        "把大部分对白改写成旁白叙述(保留说话人身份信息但不再用对白格式),信息不变", text, severity, seed)
+        "把大部分对白改写成旁白叙述(保留说话人身份信息但不再用对白格式),信息不变;"
+        "输出中不允许出现任何'名字:台词'格式的行", text, severity, seed)
 
 
 _MODAL_PARTICLES = "呢啊啦嘛吧哦呀呐哈"
@@ -449,7 +449,9 @@ def _modal_hits(text: str) -> int:
 # ---- 缺陷验真(ADR-0002):只有"缺陷可测量地真的落进去了"的对才进考场 ----
 # 无验真器的算子(D06/D11,llm_mid 保真度不可测)的对不进考场——宁可缺考,不造假分。
 VERIFY: dict[str, Callable[[str, str], bool]] = {
-    "D01_shuffle_beats": lambda o, d: sorted(o.split()) == sorted(d.split()) and o != d,
+    "D01_shuffle_beats": lambda o, d: (
+        sorted(l for l in o.splitlines() if l.strip())
+        == sorted(l for l in d.splitlines() if l.strip()) and o != d),
     "D02_remove_hook": lambda o, d: len(_lines(d)) < len(_lines(o)),
     "D03_flatten_cliffhanger": lambda o, d: (
         bool(re.search(r"[?!?!]", o[-150:]))

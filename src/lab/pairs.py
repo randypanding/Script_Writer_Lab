@@ -169,6 +169,16 @@ def build_corpus_degraded(
 
     from lab.degrade import REGISTRY
 
+    # llm_mid 适用前提(实证:无钩子的片段"拍平悬念"、无对白的片段"对白转叙述"
+    # 都是无意义任务,且验真不过——D03 13/173、D13 18/172)
+    _LLM_PRECONDITION = {
+        "D03_flatten_cliffhanger": lambda frag: bool(re.search(r"[?!?!][」』”]?\s*$", frag.strip())),
+        "D04_flatten_rhythm": lambda frag: len(
+            [s for s in re.split(r"[。!?…!?]+", frag) if len(s.strip()) >= 2]) >= 4,
+        "D13_dialogue_to_narration": lambda frag: sum(
+            1 for ln in frag.splitlines() if _DIALOGUE_LINE.match(ln.strip())) >= 2,
+    }
+
     store = Path(store_dir)
     pairs: list[dict[str, Any]] = []
     done_keys: set[tuple[str, str, float]] = set()
@@ -200,6 +210,9 @@ def build_corpus_degraded(
         for op_id, op in sorted(REGISTRY.items()):
             if op.mechanism == "llm_mid":
                 if use_llm:
+                    pre = _LLM_PRECONDITION.get(op_id)
+                    if pre is not None and not pre(fragment):
+                        continue  # 前提不满足,不派无意义改写任务
                     for sev in severities:
                         if (sid, op_id, float(sev)) not in done_keys:
                             llm_jobs.append((sid, fragment, op_id, sev))
