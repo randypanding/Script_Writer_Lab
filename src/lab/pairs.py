@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -235,10 +236,17 @@ def build_corpus_degraded(
         return pair
 
     if llm_jobs:
+        print(f"[pairs] llm_mid 待改写 {len(llm_jobs)} 项(断点跳过已完成)@ "
+              f"{time.strftime('%H:%M:%S')}", flush=True)
         with ThreadPoolExecutor(max_workers=24) as ex:
+            done_n = 0
             for res in ex.map(_run_llm, llm_jobs):
+                done_n += 1
                 if res is not None:
                     pairs.append(res)
+                if done_n % 100 == 0:
+                    print(f"[pairs] llm_mid 进度 {done_n}/{len(llm_jobs)} @ "
+                          f"{time.strftime('%H:%M:%S')}", flush=True)
     return pairs
 
 
@@ -401,14 +409,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "build":
         sevs = tuple(float(x) for x in args.severities.split(",") if x.strip())
         ckpt = (Path(args.out) / "partial_llm.jsonl") if args.llm_mid else None
+        print(f"[pairs] 阶段 1/4 corpus_degraded 开始 @ {time.strftime('%H:%M:%S')}", flush=True)
         pairs = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid,
                                       llm_mid_scripts=args.llm_mid_limit, checkpoint=ckpt)
+        print(f"[pairs] 阶段 2/4 gen_degraded(累计 {len(pairs)})", flush=True)
         gen_texts = _gen_texts_from_runs(args.gen_dir)
         pairs += build_gen_degraded(gen_texts, severities=sevs)
+        print(f"[pairs] 阶段 3/4 corpus_vs_gen(累计 {len(pairs)})", flush=True)
         pairs += build_corpus_vs_gen(args.store, gen_texts)
         assert_no_split_leakage(pairs)
         counts = write_jsonl(pairs, args.out)
         kinds = Counter(p["construction"]["kind"] for p in pairs)
+        print(f"[pairs] 阶段 4/4 写盘完成 @ {time.strftime('%H:%M:%S')}", flush=True)
         print(json.dumps({"total": len(pairs), **counts, "kinds": dict(kinds)},
                          ensure_ascii=False))
         return 0
