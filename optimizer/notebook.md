@@ -30,9 +30,42 @@ sealed_score: null
 notes: "v5 成绩结构分析:确定性明显缺陷轴最高(placement 0.85/l0_dialogue 0.77),llm_mid 保真度拖累轴最低(transportation 0.40);D08 裸矛盾使 l0_fact 0.48→0.60。本轮起考分=验真对上的灵敏度。若验真后多数轴仍 <0.85,则瓶颈是随机后端能力本身——届时带着数据向人类申请契约调整(k=9 或改门限)。"
 ```
 ```yaml
-round: 6
+round: 9
 date: "2026-08-24"
-hypothesis: "测量迭代③(ADR-0002):验真过滤(缺陷必须可测量地落地才进考场)+ D16/D17 后,考分反映判官真实能力;结果:transportation 0.89 过闸,证实随机后端工作区间 0.5-0.77 是能力天花板"
+hypothesis: "管线完成率优先:round8 失败诊断显示随机后端在'未明说的契约'上全面漏接——把契约全部显式写进指令(beat_kind 枚举/PENDING 落点/钩子回应/JSON 纯净)+ 评测切片从 6 集右调到 3 集(迭代速度 2.7h→~40min),完成率应显著上升"
+surface: op.prompt_instructions
+change: "prompts/p3_beatsheet.json v2(枚举纪律/PENDING 落点纪律/集末钩子回应/禁止自造 kind);新增 profiles/lab_smoke_v1.yaml(3 集切片)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "round8 失败结构:STR-018 未消(kind 误标——内容升级但标成 setup,枚举纪律正是为此)、STR-016×2、PENDING:table_reveal 悬空、ValidationError×7。元洞察:对随机后端,'门禁即指令'是唯一可靠通道——凡 checker 要求而指令未明说的,都注定失败;这把后续 M1 迭代的方向钉死了:指令-门禁对齐审计。"
+```
+```yaml
+round: 9
+date: "2026-08-24"
+hypothesis: "管线完成率优先:round8 失败诊断显示随机后端在'未明说的契约'上全面漏接——把契约全部显式写进指令(beat_kind 枚举/PENDING 落点/钩子回应/JSON 纯净)+ 评测切片从 6 集右调到 3 集(迭代速度 2.7h→~40min),完成率应显著上升"
+surface: op.prompt_instructions
+change: "prompts/p3_beatsheet.json v2(枚举纪律/PENDING 落点纪律/集末钩子回应/禁止自造 kind);新增 profiles/lab_smoke_v1.yaml(3 集切片)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "round8 失败结构:STR-018 未消(kind 误标——内容升级但标成 setup,枚举纪律正是为此)、STR-016×2、PENDING:table_reveal 悬空、ValidationError×7。元洞察:对随机后端,'门禁即指令'是唯一可靠通道——凡 checker 要求而指令未明说的,都注定失败;这把后续 M1 迭代的方向钉死了:指令-门禁对齐审计。"
+```
+```yaml
+round: 8
+date: "2026-08-24"
+hypothesis: "首个完成率迭代:种子 harness 在免费后端上无法完成(STR-018 有门禁无指令——检查器要 escalation,种子 p3 指令从未提过),显式 escalation 契约应让管线完成"
+surface: op.prompt_instructions
+change: "prompts/p3_beatsheet.json v1(显式 escalation 硬约束+自检;provenance=lab-round1-optimizer)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "结果:未完成。失败面扩大为四类:STR-018 仍在(kind 误标)、STR-016×2、PENDING:table_reveal 悬空解引用、ValidationError×7+TypeError(NPC 结构输出畸形)。教训:单条指令补强不够,随机后端需要'全部契约明文化'。起点状态刻印:champion v0=种子 harness,在免费后端上无法完成(零产物)。"
+```
+```yaml
+round: 7
+date: "2026-08-24"
+hypothesis: "测量迭代③结果(ADR-0002):验真过滤后考分反映判官真实能力;transportation 0.89 过闸,证实随机后端工作区间 0.5-0.77 是能力天花板"
 surface: op.propose_check_rule
 change: "degrade.VERIFY 验真谓词;D14 无标记停用(682 假缺陷实证);llm_mid 适用前提;D16/D17 naturalness 缺陷源;run_exam_packed 只纳验真对"
 ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}

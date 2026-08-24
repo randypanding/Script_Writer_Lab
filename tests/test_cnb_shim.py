@@ -48,3 +48,10 @@ def test_oversize_instruction_fast_fails(monkeypatch):
             assert "护栏" in e.read().decode("utf-8")
     finally:
         server.shutdown()
+
+
+def test_json_salvage():
+    """JSON 抢救:散文/栅栏包裹时提取干净 JSON(实证:p0 因外衣解析失败)。"""
+    assert cnb_shim._strip_reply('好的,以下是结果:\n```json\n{"a": 1}\n```\n请查收') == '{"a": 1}'
+    assert cnb_shim._strip_reply('输出:{"b": {"c": 2}} 完毕') == '{"b": {"c": 2}}'
+    assert cnb_shim._strip_reply('@cnb.x(判官) 就是这段文本,没有 JSON') == "就是这段文本,没有 JSON"

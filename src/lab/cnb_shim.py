@@ -9,6 +9,7 @@ OpenAI 客户端指向 http://127.0.0.1:8400/v1 即用 CNB swarm 当后端,代�
 from __future__ import annotations
 
 import json
+import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -24,7 +25,20 @@ def _to_instruction(messages: list[dict[str, Any]]) -> str:
 
 
 def _strip_reply(reply: str) -> str:
-    return swarm._MENTION_RE.sub("", reply.strip())
+    body = swarm._MENTION_RE.sub("", reply.strip())
+    # JSON 抢救(实证:p0 因 NPC 在 JSON 外包了散文/代码栅栏而解析失败):
+    # 优先 ```json 栅栏内容,其次第一个平衡花括号块。
+    fence = re.search(r"```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```", body, re.DOTALL)
+    if fence:
+        return fence.group(1)
+    start = body.find("{")
+    if start >= 0:
+        depth = 0
+        for i, ch in enumerate(body[start:], start):
+            depth += 1 if ch == "{" else (-1 if ch == "}" else 0)
+            if depth == 0:
+                return body[start : i + 1]
+    return body
 
 
 class ShimHandler(BaseHTTPRequestHandler):
@@ -37,7 +51,8 @@ class ShimHandler(BaseHTTPRequestHandler):
             instruction = _to_instruction(body.get("messages", []))
             if len(instruction) > MAX_INSTRUCTION_CHARS:
                 raise ValueError(f"指令 {len(instruction)} 字符 > 护栏 {MAX_INSTRUCTION_CHARS}")
-            reply = _strip_reply(swarm.run_task(instruction, work_mode=False, timeout_s=900))
+            reply = _strip_reply(swarm.run_task(instruction, work_mode=False, timeout_s=900,
+                                                mention="@CodeBuddy"))  # 生成任务不用判官人格(实证:判官拒答致 p0 解析失败)
             payload = {
                 "id": f"cnb-{int(time.time() * 1000)}",
                 "object": "chat.completion",
