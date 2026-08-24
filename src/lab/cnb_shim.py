@@ -57,6 +57,28 @@ def _has_json(text: str) -> bool:
     return text.lstrip().startswith(("{", "["))
 
 
+#: 结构省略侦测(实证 ~3% 毒化率:NPC 懒写返回 {"scene_json":"{...}"} /
+#: "[{\"line_type\":\"action\",...}, ...]" / "Line[] 的 JSON..."——以 { 开头骗过
+#: _has_json,但 SW 侧内层解析必死)。对白合法省略号是中文 ……,ASCII ... 只配占位用。
+_ELISION_RE = re.compile(
+    r"\{\s*\.\.\.\s*\}"  # {...} 占位
+    r"|JSON\s*\.\.\."  # "Line[] 的 JSON..." 模式占位
+    r"|[\[,:]\s*\.\.\."  # 结构符后接 ...(如 , ... / [...)
+    r"|\.\.\.\s*[,\]\}]"  # ...后接结构符(如 ...] / ...,)
+)
+
+
+def _json_ok(text: str) -> bool:
+    """真验证:以 {/[ 开头 + 整体能 json.loads + 无结构省略。三关全过才放行。"""
+    if not _has_json(text):
+        return False
+    try:
+        json.loads(text)
+    except Exception:  # noqa: BLE001 —— 任何解析失败都走重试通道
+        return False
+    return not _ELISION_RE.search(text)
+
+
 class ShimHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.path.rstrip("/").endswith("/v1/chat/completions"):
@@ -73,16 +95,18 @@ class ShimHandler(BaseHTTPRequestHandler):
                 raise ValueError(f"指令 {len(instruction)} 字符 > 护栏 {MAX_INSTRUCTION_CHARS}")
             reply = _strip_reply(swarm.run_task(instruction, work_mode=False, timeout_s=900,
                                                 mention="@CodeBuddy"))  # 生成任务不用判官人格(实证:判官拒答致 p0 解析失败)
-            # JSON 重试(实证:p0 最高频死法是 NPC 回散文;强约束重试把合规彩票前移)
+            # JSON 重试(实证:p0 最高频死法是 NPC 回散文;次高频是 ... 占位毒化——
+            # 强约束重试把合规彩票前移,占位场景必须明说"禁止省略")
             tries = 0
-            while rec["json_mode"] and not _has_json(reply) and tries < _JSON_STRICT_TRIES:
+            while rec["json_mode"] and not _json_ok(reply) and tries < _JSON_STRICT_TRIES:
                 tries += 1
-                strict = (instruction + f"\n\n【重试要求·第{tries}次】上一次回复无法解析。这次请只输出合法 JSON 对象,"
-                          "不要任何解释、问候、代码栅栏。")
+                strict = (instruction + f"\n\n【重试要求·第{tries}次】上一次回复无法解析或含有省略/占位内容"
+                          "（如 ...、{...}、\"Line[] 的 JSON...\"）。这次请只输出完整合法的 JSON 对象："
+                          "所有字段写出完整内容，禁止省略占位、解释、问候、代码栅栏。")
                 reply = _strip_reply(swarm.run_task(strict, work_mode=False, timeout_s=900,
                                                     mention="@CodeBuddy"))
             rec["tries"] = tries
-            rec["json_ok"] = _has_json(reply)
+            rec["json_ok"] = _json_ok(reply)
             rec["reply_head"] = reply[:300]
             rec["reply_tail"] = reply[-300:] if len(reply) > 300 else ""
             payload = {
