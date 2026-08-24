@@ -12,11 +12,23 @@ import json
 import re
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 
 from lab import swarm
 
 MAX_INSTRUCTION_CHARS = 20000  # 评论长度上限未明,先设护栏;撞上再调
+TRAFFIC_LOG = Path("out/shim_traffic.jsonl")  # 逐请求证据(p5 毒化现场复盘靠它)
+_JSON_STRICT_TRIES = 2  # 强约束重试轮数(实证:1 轮救不回稳定毒化的场景)
+
+
+def _log_traffic(rec: dict[str, Any]) -> None:
+    try:
+        TRAFFIC_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with TRAFFIC_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
 
 
 def _to_instruction(messages: list[dict[str, Any]]) -> str:
@@ -50,21 +62,29 @@ class ShimHandler(BaseHTTPRequestHandler):
         if not self.path.rstrip("/").endswith("/v1/chat/completions"):
             self.send_error(404)
             return
+        t0 = time.time()
+        rec: dict[str, Any] = {"ts": t0}
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             instruction = _to_instruction(body.get("messages", []))
+            rec["prompt_len"] = len(instruction)
+            rec["json_mode"] = "JSON" in instruction.upper()
             if len(instruction) > MAX_INSTRUCTION_CHARS:
                 raise ValueError(f"指令 {len(instruction)} 字符 > 护栏 {MAX_INSTRUCTION_CHARS}")
             reply = _strip_reply(swarm.run_task(instruction, work_mode=False, timeout_s=900,
                                                 mention="@CodeBuddy"))  # 生成任务不用判官人格(实证:判官拒答致 p0 解析失败)
-            # JSON 重试(实证:p0 最高频死法是 NPC 回散文;二次带强约束的调用把合规彩票前移)
-            if "JSON" in instruction.upper() and not _has_json(reply):
-                strict = (instruction + "\n\n【重试要求】上一次回复无法解析。这次请只输出合法 JSON 对象,"
+            # JSON 重试(实证:p0 最高频死法是 NPC 回散文;强约束重试把合规彩票前移)
+            tries = 0
+            while rec["json_mode"] and not _has_json(reply) and tries < _JSON_STRICT_TRIES:
+                tries += 1
+                strict = (instruction + f"\n\n【重试要求·第{tries}次】上一次回复无法解析。这次请只输出合法 JSON 对象,"
                           "不要任何解释、问候、代码栅栏。")
-                reply2 = _strip_reply(swarm.run_task(strict, work_mode=False, timeout_s=900,
-                                                     mention="@CodeBuddy"))
-                if _has_json(reply2):
-                    reply = reply2
+                reply = _strip_reply(swarm.run_task(strict, work_mode=False, timeout_s=900,
+                                                    mention="@CodeBuddy"))
+            rec["tries"] = tries
+            rec["json_ok"] = _has_json(reply)
+            rec["reply_head"] = reply[:300]
+            rec["reply_tail"] = reply[-300:] if len(reply) > 300 else ""
             payload = {
                 "id": f"cnb-{int(time.time() * 1000)}",
                 "object": "chat.completion",
@@ -79,12 +99,16 @@ class ShimHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
         except Exception as exc:  # noqa: BLE001 —— 网关边界,必须把任何异常变成 500 响应
+            rec["error"] = str(exc)[:300]
             data = json.dumps({"error": {"message": str(exc)[:300]}},
                               ensure_ascii=False).encode("utf-8")
             self.send_response(500)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+        finally:
+            rec["dur_s"] = round(time.time() - t0, 1)
+            _log_traffic(rec)
 
     def log_message(self, *args):  # 静默访问日志
         pass
