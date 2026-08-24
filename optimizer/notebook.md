@@ -41,17 +41,6 @@ sealed_score: null
 notes: "round8 失败结构:STR-018 未消(kind 误标——内容升级但标成 setup,枚举纪律正是为此)、STR-016×2、PENDING:table_reveal 悬空、ValidationError×7。元洞察:对随机后端,'门禁即指令'是唯一可靠通道——凡 checker 要求而指令未明说的,都注定失败;这把后续 M1 迭代的方向钉死了:指令-门禁对齐审计。"
 ```
 ```yaml
-round: 9
-date: "2026-08-24"
-hypothesis: "管线完成率优先:round8 失败诊断显示随机后端在'未明说的契约'上全面漏接——把契约全部显式写进指令(beat_kind 枚举/PENDING 落点/钩子回应/JSON 纯净)+ 评测切片从 6 集右调到 3 集(迭代速度 2.7h→~40min),完成率应显著上升"
-surface: op.prompt_instructions
-change: "prompts/p3_beatsheet.json v2(枚举纪律/PENDING 落点纪律/集末钩子回应/禁止自造 kind);新增 profiles/lab_smoke_v1.yaml(3 集切片)"
-ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
-decision: rejected
-sealed_score: null
-notes: "round8 失败结构:STR-018 未消(kind 误标——内容升级但标成 setup,枚举纪律正是为此)、STR-016×2、PENDING:table_reveal 悬空、ValidationError×7。元洞察:对随机后端,'门禁即指令'是唯一可靠通道——凡 checker 要求而指令未明说的,都注定失败;这把后续 M1 迭代的方向钉死了:指令-门禁对齐审计。"
-```
-```yaml
 round: 8
 date: "2026-08-24"
 hypothesis: "首个完成率迭代:种子 harness 在免费后端上无法完成(STR-018 有门禁无指令——检查器要 escalation,种子 p3 指令从未提过),显式 escalation 契约应让管线完成"
