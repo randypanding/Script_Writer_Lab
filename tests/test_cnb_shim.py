@@ -55,3 +55,22 @@ def test_json_salvage():
     assert cnb_shim._strip_reply('好的,以下是结果:\n```json\n{"a": 1}\n```\n请查收') == '{"a": 1}'
     assert cnb_shim._strip_reply('输出:{"b": {"c": 2}} 完毕') == '{"b": {"c": 2}}'
     assert cnb_shim._strip_reply('@cnb.x(判官) 就是这段文本,没有 JSON') == "就是这段文本,没有 JSON"
+
+
+def test_json_retry_on_prose(monkeypatch):
+    """首答散文→自动带强约束重试一次;重试出 JSON 则用之(实证:p0 最高频死法)。"""
+    calls = []
+    server = _serve_bg(monkeypatch, "unused")
+    try:
+        def fake_run_task(ins, **kw):
+            calls.append(ins)
+            return "抱歉我不会" if len(calls) == 1 else '{"ok": true}'
+
+        monkeypatch.setattr(swarm, "run_task", fake_run_task)  # 在 _serve_bg 之后覆盖
+        port = server.server_address[1]
+        out = _post(port, {"model": "x", "messages": [
+            {"role": "user", "content": "请以 JSON 输出 brief 结构"}]})
+        assert out["choices"][0]["message"]["content"] == '{"ok": true}'
+        assert len(calls) == 2  # 首答散文触发了重试
+    finally:
+        server.shutdown()

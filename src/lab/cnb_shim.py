@@ -41,6 +41,10 @@ def _strip_reply(reply: str) -> str:
     return body
 
 
+def _has_json(text: str) -> bool:
+    return text.lstrip().startswith(("{", "["))
+
+
 class ShimHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.path.rstrip("/").endswith("/v1/chat/completions"):
@@ -53,6 +57,14 @@ class ShimHandler(BaseHTTPRequestHandler):
                 raise ValueError(f"指令 {len(instruction)} 字符 > 护栏 {MAX_INSTRUCTION_CHARS}")
             reply = _strip_reply(swarm.run_task(instruction, work_mode=False, timeout_s=900,
                                                 mention="@CodeBuddy"))  # 生成任务不用判官人格(实证:判官拒答致 p0 解析失败)
+            # JSON 重试(实证:p0 最高频死法是 NPC 回散文;二次带强约束的调用把合规彩票前移)
+            if "JSON" in instruction.upper() and not _has_json(reply):
+                strict = (instruction + "\n\n【重试要求】上一次回复无法解析。这次请只输出合法 JSON 对象,"
+                          "不要任何解释、问候、代码栅栏。")
+                reply2 = _strip_reply(swarm.run_task(strict, work_mode=False, timeout_s=900,
+                                                     mention="@CodeBuddy"))
+                if _has_json(reply2):
+                    reply = reply2
             payload = {
                 "id": f"cnb-{int(time.time() * 1000)}",
                 "object": "chat.completion",
