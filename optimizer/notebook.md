@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 14
+date: "2026-08-24"
+hypothesis: "生成侧(非优化轮,harness 硬化):STR-014 缺承重节拍/BM-002 植入扎堆/STR-010 主角缺席三类结构缺陷,相位重试只复述诊断不改结构(attempt4/5 各烧 ~1.5h 同门连死),机械修复应让编译门禁一次性通过"
+surface: op.prompt_instructions
+change: "SW f7df614:p3_beatsheet 新增 _repair_load_bearing(缺 inciting/climax 时改写居中/后段唤起最高的非保护拍)+_repair_brand_gap(植入拍后移至首个间距达标的非植入空位,有限步防振荡);p4_scene 新增 _repair_protagonist_present(主角缺席补进在场最多场景);setup_payoffs 先解引用再换序;tests/test_p3_structural_repairs.py 12 例,全量 572 过"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "方法论定型:弱随机后端上,结构性约束(枚举/间距/出席)一律机械兜底,指令只负责语义质量。attempt5 死因还有 FCT-003 伏笔回收记账(facts_json.resolves 不落库)未修——若 round14 跑批仍撞 FCT-003,下一轮补。编号 10-13 为 SW 侧指令补丁轮(p3 全枚举/PENDING 降级/p5 体量地板/p4 类型矫正等),详见 SW git log。"
+```
+```yaml
 round: 6
 date: "2026-08-23"
 hypothesis: "测量迭代③(ADR-0002):验真过滤(缺陷必须可测量地落地才进考场)+ D16 公文化后,llm 保真度噪声被剔除,naturalness/transportation 等轴读数应反映判官真实能力"
