@@ -7,5 +7,18 @@ champions:
     sealed_score: null
     baseline_score_mock: 0.2033
     date: "2026-08-22"
-    note: "bootstrap 刻印:mock LLM 管线基线(10 合成 brief 全通,确定性基准分);"
-      "promptset 在该 ref 未入库(gitignored 生成物)记 null;真实判官分待 API key"
+    note: "bootstrap 刻印:mock LLM 管线基线(10 合成 brief 全通,确定性基准分);promptset 在该 ref 未入库(gitignored 生成物)记 null;真实判官分待 API key"
+  - tag: champion/v1-xiawu3dian
+    sw_commit: 4f53dd1686744907f76757d95c1acaae9ff2ad5c
+    spec_sha: null
+    promptset_sha: null
+    sealed_score: null
+    date: "2026-08-25"
+    artifact: "SW/out/下午三点(novel.md 26k 字 8 章 + script.md 29k 字 8 集 + manifest.json)"
+    dev_scores: {transportation: 0.7083, placement_integration: 0.9286, l0_dialogue: 1.0}
+    dev_winrates: {transportation: 0.5, placement_integration: 0.8571, l0_dialogue: 1.0}
+    note: "首个真实产物基线(round17 管线,p0→p7 全通,final 门被暗线溢出 blocked——round18 已修)。
+      判分=产物切片 vs 同轴语料锚,双向 k=5 打包投票(脚本 scripts/judge_artifact.py,报告 out/artifact_judge_v1.json)。
+      已知偏差:语料锚对判官有系统性劣势(考试 corpus_vs_gen 排除的同一现象),绝对值偏高,
+      分位数只作纵向对比锚——v2+ 用同一语料池同一程序判分,差值才有意义。
+      l0_dialogue 已触顶(1.0),该轴无改进量程,改进主战场是 transportation。"
