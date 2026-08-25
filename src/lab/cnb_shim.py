@@ -17,7 +17,7 @@ from typing import Any
 
 from lab import swarm
 
-MAX_INSTRUCTION_CHARS = 20000  # 评论长度上限未明,先设护栏;撞上再调
+MAX_INSTRUCTION_CHARS = 60000  # CNB 评论上限未明(GitHub 系通常 65536);p6 实测 46k,压到 60k 内放行
 TRAFFIC_LOG = Path("out/shim_traffic.jsonl")  # 逐请求证据(p5 毒化现场复盘靠它)
 _JSON_STRICT_TRIES = 2  # 强约束重试轮数(实证:1 轮救不回稳定毒化的场景)
 
