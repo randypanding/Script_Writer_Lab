@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 19
+date: "2026-08-25"
+hypothesis: "champion v1 基线刻印(非优化轮):首个真实产物《下午三点》三轴判分,为后续优化轮立纵向对比锚"
+surface: op.prompt_instructions
+change: "SW 4f53dd1(round17)产物:8 章 novel+8 集 script+manifest,p0→p7 全通(final 门暗线溢出 blocked,round18 b777914 已修)。判分:scripts/judge_artifact.py,产物切片 vs 同轴语料锚,双向 k=5 打包投票,报告 out/artifact_judge_v1.json。champions.yaml 刻 champion/v1-xiawu3dian"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "基线分:transportation 0.708(winrate 0.5)/placement 0.929/l0_dialogue 1.0。已知偏差:语料锚对判官系统性劣势(考试 corpus_vs_gen 排除的同一现象),绝对值偏高,只有同池同程序的纵向差值有意义。l0_dialogue 触顶无量程;改进主战场=transportation。round15-18 为 harness 硬化轮(时长缩放/传输容错/对白区间对齐+扩写/p6 瘦身/暗线钳制),详见 SW git log cd8c976..b777914。"
+```
+```yaml
 round: 14
 date: "2026-08-24"
 hypothesis: "生成侧(非优化轮,harness 硬化):STR-014 缺承重节拍/BM-002 植入扎堆/STR-010 主角缺席三类结构缺陷,相位重试只复述诊断不改结构(attempt4/5 各烧 ~1.5h 同门连死),机械修复应让编译门禁一次性通过"
