@@ -1,0 +1,12 @@
+{
+  "project": "下午三点",
+  "run_id": "01M0W6DFJN82X6YPVKZAXHP7CT",
+  "created_at": "2026-08-25T10:10:52.632415+00:00",
+  "artifacts": [
+    "out\\下午三点\\novel.md",
+    "out\\下午三点\\script.md"
+  ],
+  "promptset_ver": "2b08c1cefe73",
+  "ruleset_ver": "3e0ffcaed19a",
+  "spec_sha": "11639854f2f8"
+}
