@@ -22,7 +22,7 @@ from lab import swarm  # noqa: E402
 from lab.judgekit import _axis_hint, load_criteria  # noqa: E402
 
 AXES = ("transportation", "placement_integration", "l0_dialogue")
-BRAND_RE = re.compile(r"清野|轻乳茶")
+BRAND_RE = re.compile(r"清野|轻乳茶")  # 默认 demo_tea;其他品牌用 --brand-re 覆盖
 
 
 def _novel_excerpts(novel_md: str, n: int, rng: random.Random, chars: int = 700) -> list[str]:
@@ -129,7 +129,12 @@ def main() -> int:
     ap.add_argument("--pairs", type=int, default=20)
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--workers", type=int, default=24)
+    ap.add_argument("--brand-re", default=None,
+                    help="含品牌元素的场过滤正则(placement_integration 切片用),默认清野|轻乳茶")
     args = ap.parse_args()
+    if args.brand_re:
+        global BRAND_RE
+        BRAND_RE = re.compile(args.brand_re)
     ad = Path(args.artifact_dir)
     novel = (ad / "novel.md").read_text("utf-8")
     script = (ad / "script.md").read_text("utf-8")
