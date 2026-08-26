@@ -144,7 +144,32 @@ def main() -> int:
     ap.add_argument("--units", type=int, default=15)
     ap.add_argument("--workers", type=int, default=16)
     ap.add_argument("--exam", action="store_true")
+    ap.add_argument("--pilot", action="store_true", help="批量标注 pilot_works.json(断点续跑)")
     args = ap.parse_args()
+
+    if args.pilot:
+        works = json.loads(Path("out/annotate/pilot_works.json").read_text("utf-8"))
+        for w in works:
+            stem = Path(w["path"]).stem
+            out_path = Path(f"out/annotate/{stem}.jsonl")
+            if out_path.exists() and len(out_path.read_text("utf-8").splitlines()) >= 8:
+                print(f"[pilot] 跳过(已存在): {stem}", flush=True)
+                continue
+            print(f"[pilot] 开始 {w['kind']} {stem} @ {time.strftime('%H:%M:%S')}", flush=True)
+            try:
+                units = _load_units(w["path"], args.units)
+                runs = [annotate(units, args.workers) for _ in range(3)]
+                cards = [_majority([r[i] for r in runs]) for i in range(len(units))]
+                ok = [c for c in cards if c]
+                with out_path.open("w", encoding="utf-8") as f:
+                    for c in ok:
+                        f.write(json.dumps(c, ensure_ascii=False) + "\n")
+                print(f"[pilot] 完成 {stem}: {len(ok)}/{len(units)} 卡 @ {time.strftime('%H:%M:%S')}",
+                      flush=True)
+            except Exception as e:  # noqa: BLE001 —— 单作品失败不拖死全批,下一轮续跑补
+                print(f"[pilot] 失败 {stem}: {str(e)[:150]}", flush=True)
+        return 0
+
     path = args.path or EXAM_WORK
     units = _load_units(path, args.units)
     print(f"[annotate] {Path(path).stem}: {len(units)} 单元 @ {time.strftime('%H:%M:%S')}", flush=True)
