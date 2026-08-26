@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 23
+date: "2026-08-27"
+hypothesis: "R2 正向契约(315 卡实证的三缺口:钩型/信息差/对手)能收敛 v3 的平淡缺口且不降级三轴"
+surface: op.prompt_instructions
+change: "SW 4780fa0:CRAFT-001/002 warn 检查(对手同场/信息差)+p1-p4 signature 正向指令(antagonist 必有/秘密/premise/赌注升级/钩型配额/arousal 真评/对手戏/knowledge_state)"
+ab: {briefs: 1, seeds: [1], winrate: null, ci95: [null, null], per_axis_floor: fail}
+decision: rejected
+sealed_score: null
+notes: "一次全绿(2h34m,一过率 1/1 无代价)。craft 三缺口两收敛:hook 攻击型 37%→67%、info_gap 25%→67%、scene_turn 62%→100%、张力序列 [4,4,5,4,4,5];conflict person 25%→33% 仍远低(self 50%)。三轴:transportation 0.75→0.764(winrate 0.50→0.64 上行),l0_dialogue 1.0→0.938(噪声带边),placement 0.964→0.765(-0.20 破地板——但逐对分析:0 败 7 平,是'碾压变打平'不是'变差')。判读:戏剧指令挤占了 IP 高光时刻的展示空间。下一假设 R3:best-of-3+张力重排,选择标准同时纳入 placement,证明两个目标可兼得。promotion 契约不破:轴地板失败即 rejected,记档不晋升。"
+```
+```yaml
 round: 22
 date: "2026-08-26"
 hypothesis: "champion v3 刻印(收官轮):全绿完走的南浪仔为正式 champion;判分三轴不劣于 v2 即替换"
