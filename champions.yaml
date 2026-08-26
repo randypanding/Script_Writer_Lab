@@ -22,3 +22,16 @@ champions:
       已知偏差:语料锚对判官有系统性劣势(考试 corpus_vs_gen 排除的同一现象),绝对值偏高,
       分位数只作纵向对比锚——v2+ 用同一语料池同一程序判分,差值才有意义。
       l0_dialogue 已触顶(1.0),该轴无改进量程,改进主战场是 transportation。"
+  - tag: champion/v2-nolan
+    sw_commit: 31f44c567e0bfec2a45199b31531a03f8e73e43a
+    spec_sha: null
+    promptset_sha: null
+    sealed_score: null
+    date: "2026-08-26"
+    artifact: "deliverables/2026-08-26/南浪仔-v2-attempt1(novel.md 22k 字 + script.md 26k 字,海南文旅 IP,用户定稿五幕)"
+    dev_scores: {transportation: 0.73, placement_integration: 0.9545, l0_dialogue: 0.9286}
+    dev_winrates: {transportation: 0.5, placement_integration: 0.9091, l0_dialogue: 0.8571}
+    note: "南浪仔首个基线(新产物线,不与 v1 构成晋升/降级——题材不同,跨故事轴分只作水位参考)。
+      内容门禁全绿;attempt1 死于 ir.json 导出 datetime bug(round20d 已修),产物文本本身完整有效。
+      判分=artifact_judge_v2b.json(l0_dialogue 7 对,门槛降至 6);同产物首跑 v2 为 0.70/0.909,
+      两跑差 ±0.02-0.05——这就是当前判官噪声带的实证宽度,后续晋升阈值必须大于它。"

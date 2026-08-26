@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 21
+date: "2026-08-26"
+hypothesis: "champion v2 刻印(非优化轮):南浪仔(新产物线)首基线;题材从茶饮迁移到文旅 IP,harness 零学科特判成立"
+surface: op.prompt_instructions
+change: "SW 5023e39/31f44c5(南浪仔 brief+brand 资产,BM-009 canonical 修正);产物 deliverables/2026-08-26/南浪仔-v2-attempt1(内容门禁全绿,ir.json 导出 bug round20d 已修);判分 artifact_judge_v2b.json;champions.yaml 刻 champion/v2-nolan"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "v2b 三轴:transportation 0.73/placement 0.955/l0_dialogue 0.929(7 对)。关键副产品:同产物两跑判分差 ±0.02-0.05=判官噪声带实测宽度,晋升阈值必须大于它。v2 与 v1 题材不同,只作水位参考(0.70-0.73/0.91-0.95 同一水位),不构成晋升。r20c 资产课:100% 拦截先怀疑规约(canonical 设计失误使 slogan 本身违规)。"
+```
+```yaml
 round: 19
 date: "2026-08-25"
 hypothesis: "champion v1 基线刻印(非优化轮):首个真实产物《下午三点》三轴判分,为后续优化轮立纵向对比锚"
