@@ -21,25 +21,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from lab import swarm  # noqa: E402
 
 CARD_FIELDS = (
-    'tension(1-5 整数,5=非看不可), hook_type(threat/curiosity/promise/inversion/none),'
-    ' cliffhanger(question/danger/reveal/choice/none),'
+    'tension(1-5 整数,5=非看不可), hook_type(见下定义),'
+    ' cliffhanger(见下定义),'
     ' conflict_type(person/self/society/nature/fate/none),'
     ' stakes(一句话:失败会失去什么),'
     ' reversals([{"legal":true/false,"note":"铺垫依据或null"}]),'
-    ' info_gap(reader_more/reader_less/characters_between/none),'
+    ' info_gap(见下定义),'
     ' scene_turn(true/false:本单元核心目标的结果是否发生反转),'
     ' summary(一句话剧情)'
 )
+
+TAXONOMY_DEFS = """类别定义(判定时严格遵守,有多个候选时取最先出现的):
+- hook_type: threat=开篇即有具体危险或损失逼近; curiosity=抛出未解之谜或反常信息;
+  promise=明示即将兑现的好处/爽点; inversion=既有预期被立即颠覆; none=无明显钩子。
+- cliffhanger: question=以未回答的问题收束; danger=收束于逼近的危险;
+  reveal=收束于新信息被揭露的瞬间; choice=收束于两难抉择; none=平收。取本单元最末一拍的状态。
+- info_gap: reader_more=读者知道而关键角色不知道; reader_less=关键角色知道而读者不知道;
+  characters_between=角色甲知道而角色乙不知道; none=无信息差。"""
 
 
 def build_instruction(units: list[dict]) -> str:
     parts = [
         f"你是戏剧结构分析员。下面有 {len(units)} 个互不相关的短剧集/小说章。"
         "对每个单元做戏剧机制标注,只输出一个合法 JSON 数组,不要任何解释、问候、代码栅栏。",
-        f"数组长度必须={len(units)},每个元素字段:unit_id, {CARD_FIELDS}",
+        TAXONOMY_DEFS,
+        f"数组长度必须={len(units)},每个元素字段:unit_id(照抄输入的 u1/u2 编号), {CARD_FIELDS}",
     ]
-    for u in units:
-        parts.append(f"单元 {u['unit_id']}（{u['title']}）:\n{u['text'][:6000]}")
+    for i, u in enumerate(units, 1):
+        # chunk 内局部编号(实证:全长 unit_id 会被 NPC 缩写回显,按 id 映射全场错位零产出)
+        parts.append(f"单元 u{i}（{u['title']}）:\n{u['text'][:6000]}")
     return "\n\n".join(parts)
 
 
@@ -68,6 +78,28 @@ def _load_units(path: str, max_units: int) -> list[dict]:
     return [json.loads(l) for l in out.stdout.splitlines() if l.strip()]
 
 
+def _majority(cards: list[dict | None]) -> dict | None:
+    """k 次独立标注的多数票合成(实证:单次类别字段一致率仅 0.5-0.6,噪声必须投票消化):
+    tension 取中位数;类别字段取众数(平票取先见);文本字段取自张力为中位的那张卡。"""
+    valid = [c for c in cards if c]
+    if not valid:
+        return None
+    tensions = sorted(int(c.get("tension", 0) or 0) for c in valid)
+    med = tensions[len(tensions) // 2]
+    out: dict = {"tension": med}
+    for f in ("hook_type", "cliffhanger", "conflict_type", "info_gap", "scene_turn"):
+        votes: dict[str, int] = {}
+        for c in valid:
+            v = str(c.get(f, "")).strip().lower()
+            if v:
+                votes[v] = votes.get(v, 0) + 1
+        out[f] = max(votes, key=votes.get) if votes else ""
+    anchor = next(c for c in valid if int(c.get("tension", 0) or 0) == med)
+    for f in ("stakes", "reversals", "summary"):
+        out[f] = anchor.get(f)
+    return out
+
+
 def _agreement(a: list[dict], b: list[dict]) -> float:
     """一致性:张力 |Δ|≤1 记 1 分;类别字段精确匹配;逐字段平均。"""
     cat_fields = ("hook_type", "cliffhanger", "conflict_type", "info_gap", "scene_turn")
@@ -93,8 +125,13 @@ def annotate(units: list[dict], workers: int, pack: int = 2) -> list[dict | None
         if cards is None:
             out.extend([None] * len(chunk))
         else:
-            by_id = {str(c.get("unit_id")): c for c in cards}
-            out.extend([by_id.get(u["unit_id"]) for u in chunk])
+            # 位置对齐 + 局部编号兜底(卡序通常随输入序;NPC 回显 u1/u2 时按号核对)
+            by_local = {str(c.get("unit_id", "")).strip().lower(): c for c in cards}
+            for i, u in enumerate(chunk, 1):
+                card = by_local.get(f"u{i}") or (cards[i - 1] if i <= len(cards) else None)
+                if card:
+                    card = {**card, "unit_id": u["unit_id"], "title": u["title"]}
+                out.append(card)
     return out
 
 
@@ -112,12 +149,15 @@ def main() -> int:
     units = _load_units(path, args.units)
     print(f"[annotate] {Path(path).stem}: {len(units)} 单元 @ {time.strftime('%H:%M:%S')}", flush=True)
 
-    if args.exam:  # 同一批单元标注两次(独立任务流),测标注器一致性,≥0.7 才允许放量
-        cards_a = annotate(units, args.workers)
-        cards_b = annotate(units, args.workers)
-        pairs = [(a, b) for a, b in zip(cards_a, cards_b, strict=True) if a and b]
+    if args.exam:  # 考的是"数据产品"(k=3 多数卡)的稳定性:两组独立 k=3 各合成一张,再比一致率
+        runs_a = [annotate(units, args.workers) for _ in range(3)]
+        runs_b = [annotate(units, args.workers) for _ in range(3)]
+        maj_a = [_majority([r[i] for r in runs_a]) for i in range(len(units))]
+        maj_b = [_majority([r[i] for r in runs_b]) for i in range(len(units))]
+        pairs = [(x, y) for x, y in zip(maj_a, maj_b, strict=True) if x and y]
         rate = _agreement([p[0] for p in pairs], [p[1] for p in pairs])
         report = {"units": len(units), "valid_pairs": len(pairs), "agreement": round(rate, 4),
+                  "engine": "k3_majority_vs_k3_majority",
                   "pass": rate >= 0.7 and len(pairs) >= len(units) * 0.7}
         Path("out/annotate").mkdir(parents=True, exist_ok=True)
         Path("out/annotate/exam.json").write_text(
@@ -126,7 +166,8 @@ def main() -> int:
               f"{'PASS' if report['pass'] else 'FAIL'}", flush=True)
         return 0 if report["pass"] else 1
 
-    cards = annotate(units, args.workers)
+    runs = [annotate(units, args.workers) for _ in range(3)]  # k=3 多数票(考试验证的数据产品形态)
+    cards = [_majority([r[i] for r in runs]) for i in range(len(units))]
     ok = [c for c in cards if c]
     Path("out/annotate").mkdir(parents=True, exist_ok=True)
     out_path = Path(f"out/annotate/{Path(path).stem}.jsonl")
