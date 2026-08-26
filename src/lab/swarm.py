@@ -252,13 +252,15 @@ def _checkin(n: int) -> None:
 
 def run_batch(instructions: list[str], work_mode: bool = False, timeout_s: float = 900,
               workers: int = 16, max_retries: int = 2,
-              circuit_breaker: int = 10) -> list[str | None]:
+              circuit_breaker: int = 10, mention: str | None = None) -> list[str | None]:
     """多任务并行:窗口队列复用(NPC 回复后即空闲归还),全局并发闸兜底。
 
     韧性(实证:单个死窗口曾杀死整场考试):
     - 窗口超时 → 本地拉黑该窗口,换窗重试,最多 max_retries 次;
     - 重试耗尽 → 该任务弃票返回 None(调用方按缺失票处理),不拖死全场;
     - 连续 circuit_breaker 次失败 → 熔断 raise(平台额度/服务异常,继续跑只会产垃圾)。
+    mention:NPC 角色路由(实证 R1b:生成/标注任务不传时默认判官人格,回复变字母票,
+    整场标注零产出——生成类任务必须显式传 @CodeBuddy)。
     """
     wins = healthy_free_windows()
     if len(wins) < min(len(instructions), MIN_FREE_POOL):
@@ -300,7 +302,7 @@ def run_batch(instructions: list[str], work_mode: bool = False, timeout_s: float
                 if n is None:
                     return None
                 try:
-                    dispatch(n, ins, work_mode=work_mode)
+                    dispatch(n, ins, work_mode=work_mode, mention=mention)
                     reply = poll_reply(n, timeout_s=timeout_s)
                 except TimeoutError:
                     with lock:

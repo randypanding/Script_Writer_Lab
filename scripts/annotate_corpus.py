@@ -85,7 +85,8 @@ def _agreement(a: list[dict], b: list[dict]) -> float:
 def annotate(units: list[dict], workers: int, pack: int = 2) -> list[dict | None]:
     chunks = [units[i:i + pack] for i in range(0, len(units), pack)]
     instructions = [build_instruction(c) for c in chunks]
-    replies = swarm.run_batch(instructions, workers=workers, timeout_s=600)
+    replies = swarm.run_batch(instructions, workers=workers, timeout_s=600,
+                              mention="@CodeBuddy")  # 生成类任务(实证:默认判官人格会回字母票)
     out: list[dict | None] = []
     for chunk, reply in zip(chunks, replies, strict=True):
         cards = parse_cards(reply, len(chunk)) if reply else None
