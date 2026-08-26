@@ -16,8 +16,8 @@ import sys
 import zipfile
 from pathlib import Path
 
-EP_RE = re.compile(r"^\s*第\s*[0-9０-９一二三四五六七八九十百零]{1,5}\s*集", re.M)
-CH_RE = re.compile(r"^\s*第\s*[0-9０-９一二三四五六七八九十百千万零]{1,7}\s*[章回卷节]", re.M)
+EP_RE = re.compile(r"^\s*#*\s*第\s*[0-9０-９一二三四五六七八九十百零]{1,5}\s*集", re.M)
+CH_RE = re.compile(r"^\s*#*\s*第\s*[0-9０-９一二三四五六七八九十百千万零]{1,7}\s*[章回卷节]", re.M)
 
 
 def docx_text(path: Path) -> str:
