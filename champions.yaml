@@ -35,3 +35,16 @@ champions:
       内容门禁全绿;attempt1 死于 ir.json 导出 datetime bug(round20d 已修),产物文本本身完整有效。
       判分=artifact_judge_v2b.json(l0_dialogue 7 对,门槛降至 6);同产物首跑 v2 为 0.70/0.909,
       两跑差 ±0.02-0.05——这就是当前判官噪声带的实证宽度,后续晋升阈值必须大于它。"
+  - tag: champion/v3-nolan-green
+    sw_commit: d360726a7f902e594b64293e52b84a97d83b98f7
+    spec_sha: null
+    promptset_sha: null
+    sealed_score: null
+    date: "2026-08-26"
+    artifact: "deliverables/2026-08-26/南浪仔-v3-全绿(novel.md 26.6k 字 8 章 + script.md 35.6k 字 8 集 + ir.json 382k + manifest)"
+    dev_scores: {transportation: 0.75, placement_integration: 0.9643, l0_dialogue: 1.0}
+    dev_winrates: {transportation: 0.5, placement_integration: 0.9286, l0_dialogue: 1.0}
+    note: "南浪仔正式 champion(全绿版):战役首个全程零门禁失败的完走(11:54→14:08 一次通过,
+      含 ir.json 导出)。三轴不劣于 v2 首版(0.73/0.955/0.929,7-9 对小样本),全部在噪声带内或更好。
+      已知 cosmetic:bible 角色名为'南浪仔 NOLAN',剧本说话人前缀冗长(line.text 本身合规,BM-009 只检台词)。
+      判分=artifact_judge_v3.json(35 对,零弃票)。"

@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 22
+date: "2026-08-26"
+hypothesis: "champion v3 刻印(收官轮):全绿完走的南浪仔为正式 champion;判分三轴不劣于 v2 即替换"
+surface: op.prompt_instructions
+change: "SW d360726(ir.json 导出修复)下首个全程零门禁失败完走(11:54→14:08);产物 deliverables/2026-08-26/南浪仔-v3-全绿;判分 artifact_judge_v3.json(35 对零弃票);champions.yaml 刻 champion/v3-nolan-green;战役按用户指令暂停"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: promoted
+sealed_score: null
+notes: "v3 三轴 0.75/0.964/1.0,与 v1/v2 同一水位(噪声带内),但过程指标是战役最佳:一次通过、零门禁失败、2h14m 完走——round14-20d 修复链的累积胜率在此兑现。已知 cosmetic:bible 角色名'南浪仔 NOLAN'致剧本说话人前缀冗长(BM-009 只检台词,不阻塞)。战役暂停,后续按总结报告 §3.3 路径重启。"
+```
+```yaml
 round: 21
 date: "2026-08-26"
 hypothesis: "champion v2 刻印(非优化轮):南浪仔(新产物线)首基线;题材从茶饮迁移到文旅 IP,harness 零学科特判成立"

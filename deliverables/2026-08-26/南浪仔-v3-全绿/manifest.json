@@ -1,0 +1,12 @@
+{
+  "project": "南浪仔",
+  "run_id": "01M0YAZ81RSW5ZM7D03312NJME",
+  "created_at": "2026-08-26T06:08:57.917311+00:00",
+  "artifacts": [
+    "out\\南浪仔\\novel.md",
+    "out\\南浪仔\\script.md"
+  ],
+  "promptset_ver": "2b08c1cefe73",
+  "ruleset_ver": "3e0ffcaed19a",
+  "spec_sha": "11639854f2f8"
+}
