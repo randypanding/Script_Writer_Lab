@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 25
+date: "2026-08-28"
+hypothesis: "R4 季弧层 best-of-3 重排能推 conflict person 50%→爆款 83%(弧级'独自旅行'结构在 p2 定型)"
+surface: op.sampling
+change: "SW 6561536+973243a:p2 arc_best_of=3+五标准重排;setup_payoff.kind 枚举归一(R4 attempt1 实证)"
+ab: {briefs: 1, seeds: [1], winrate: null, ci95: [null, null], per_axis_floor: fail}
+decision: rejected
+sealed_score: null
+notes: "全绿落地(attempt 4,一过率 1/4=25%——枚举漂移+NOV-002 各杀一次,代价已记录)。craft_bench 0.8395 vs v4 0.839(+0.0005,远低于 +0.02 阈值):conflict person 50% 原地不动,arc 重排未再产生增益——杠杆饱和。transportation 0.65 破地板(v4 0.75,winrate 0.3)。★关键洞察:conflict person 83% 的锚来自复仇/爽文类爆款,南浪仔是治愈系 IP(tone_words=治愈/松弛)——强拉 person 冲突会破坏题材气质;锚值需要分题材(下次标注按类型聚类分锚),当前缺口部分是锚的错位不是产物的缺陷。结论:本轮杠杆对当前 brief 已饱和,champion 维持 v4。"
+```
+```yaml
 round: 24
 date: "2026-08-27"
 hypothesis: "R3 best-of-3+监制重排(三标准含植入自然)能兼得戏剧与 placement,越过 v3 三轴地板"
