@@ -48,3 +48,17 @@ champions:
       含 ir.json 导出)。三轴不劣于 v2 首版(0.73/0.955/0.929,7-9 对小样本),全部在噪声带内或更好。
       已知 cosmetic:bible 角色名为'南浪仔 NOLAN',剧本说话人前缀冗长(line.text 本身合规,BM-009 只检台词)。
       判分=artifact_judge_v3.json(35 对,零弃票)。"
+  - tag: champion/v4-nolan-r3
+    sw_commit: 443e604435a8ee0f5cfb9b51bea977452f3d8e86
+    spec_sha: null
+    promptset_sha: null
+    sealed_score: null
+    date: "2026-08-27"
+    artifact: "SW/out/南浪仔(R3 批,best-of-3 监制重排;一次全绿 3h03m)"
+    craft_bench: 0.839
+    dev_scores: {transportation: 0.75, placement_integration: 0.85, l0_dialogue: 0.9091}
+    contract: v2(ADR-0003)
+    note: "contract v2 首个晋升:craft_bench 0.839 vs v3 0.559(+0.28 远超 0.02 阈值),
+      transportation 0.750 平 v3 地板(噪声带内),placement/l0_dialogue 按 v2 只报告。
+      craft 五维:hook 75%(=爆款)/cliffhanger 75%/scene_turn 88%/conflict person 50%/info_gap 50%。
+      剩余缺口:conflict person(50% vs 83%)、info_gap(50% vs 72%)——R4 主攻。"

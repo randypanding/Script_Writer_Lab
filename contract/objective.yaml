@@ -1,8 +1,19 @@
 # 优化目标契约 · 优化器只读,改动需人类确认 + ADR
-version: 1
+# v2(ADR-0003,2026-08-27 owner 批准):craft_bench 主攻 + 判官三轴降防崩地板
+version: 2
 
-primary_metric: sealed_pairwise_winrate_vs_champion   # 唯一主指标(ADR-0001 L-D6)
-axes:                                                  # 与 SW spec/rubrics/rubric_v1.yaml 对齐
+primary_metric: craft_bench           # 加权达标率,锚=爆款 315 卡实证频率(scripts/craft_bench.py)
+primary_threshold: 0.02               # 晋升要求 craft_bench 相对 champion 提升 > 0.02
+
+floor_axes:                           # 防崩地板(IP brief):不许相对 champion 跌出噪声带
+  - transportation                    # 三轴中唯一有量程且无 brief 类型失真的轴
+noise_band: 0.05                      # v2/v2b 同产物双跑实测的判官噪声宽度
+
+report_only_axes:                     # 只记录不进判定(IP brief)
+  - placement_integration             # IP brief 退化为符号密度(placement_axis_review.md);实物 brief 恢复进地板
+  - l0_dialogue                       # 触顶无量程(v1 起 1.0,无法当地板)
+
+legacy_axes:                          # v1 轴清单(历史对齐用,不再全数进判定)
   - naturalness
   - hook_strength
   - placement_integration
@@ -12,7 +23,7 @@ axes:                                                  # 与 SW spec/rubrics/rub
 
 gates:
   l0_all_pass: true        # 对 SW 的 spec/checks 全部 severity:block 规则
-  per_axis_floor: 0.02     # 任一轴相对 champion 退化超过 2% 即拒,不接受轴间平均掩盖
+  first_pass_watch: true   # 一过率监控(docs/first_pass_baseline.md):质量上升不得以一过率崩塌为代价
 
 eval_cascade:              # 级联评测阶梯:越往下越贵;候选须过上一档才配进入下一档
   - tier: scene            # 单场景重编译(SW recompile_scene)+ L0 + L1 标量
