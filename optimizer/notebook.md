@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 24
+date: "2026-08-27"
+hypothesis: "R3 best-of-3+监制重排(三标准含植入自然)能兼得戏剧与 placement,越过 v3 三轴地板"
+surface: op.sampling
+change: "SW 443e604:p3 _best_of_n+_rerank(张力/植入自然/赌注一致)+profile.pipeline.beats_best_of=3"
+ab: {briefs: 1, seeds: [1], winrate: null, ci95: [null, null], per_axis_floor: fail}
+decision: rejected
+sealed_score: null
+notes: "一次全绿(3h03m,连续第三批 1/1)。craft 五维史上最佳:hook 75%(=爆款)/cliffhanger 75%/scene_turn 88%/conflict person 50%(逐轮 25→33→50 爬升)/info_gap 50%。三轴:transportation 0.750 平 v3;placement 0.850(v3 0.964,逐对 15 胜 5 平 0 败——较 R2 的 0.765 大幅回升但未回 v3);l0_dialogue 0.909(v3 1.0)。契约判决:两轴破地板,rejected。★重大副产品——判官轴与 craft 基准首次正面冲突:craft 说 R3 最好,判官偏爱 v3。判读:placement 轴 rubric 奖励'广告式顺滑展示',而爆款实证(83% person 冲突)要求'戏剧化融入'——判官可能在奖励平淡,与 corpus_vs_gen 反向(判官考试 round1)同一族度量偏差。处置建议(待 owner 决):①promotion 契约升级为'三轴地板(防崩)+craft_bench 提升(主攻)'——标注器已验证(0.73 一致率),爆款频率是客观锚;②placement 轴 anchor/rubric 审查。"
+```
+```yaml
 round: 23
 date: "2026-08-27"
 hypothesis: "R2 正向契约(315 卡实证的三缺口:钩型/信息差/对手)能收敛 v3 的平淡缺口且不降级三轴"
