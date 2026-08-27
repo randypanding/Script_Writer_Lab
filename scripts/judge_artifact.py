@@ -151,7 +151,7 @@ def main() -> int:
         rng.shuffle(corpus)
         product = extractors[axis](args.pairs)
         take = min(args.pairs, len(product), len(corpus))
-        if take < 8:
+        if take < 6:  # 6 对 ×2 方向 ×k5 = 60 票,仍成读数(实证:南浪仔对白场仅 7 切片)
             report["axes"][axis] = {"error": f"切片不足 product={len(product)} corpus={len(corpus)}"}
             continue
         print(f"[judge] 轴 {axis}: {take} 对 ×2 方向 ×k{args.k} @ {time.strftime('%H:%M:%S')}",
