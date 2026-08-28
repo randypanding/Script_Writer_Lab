@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from lab import swarm  # noqa: E402
-from lab.judgekit import _axis_hint, load_criteria  # noqa: E402
+from lab import swarm
+from lab.judgekit import _axis_hint, load_criteria
 
 AXES = ("transportation", "placement_integration", "l0_dialogue")
 BRAND_RE = re.compile(r"清野|轻乳茶")  # 默认 demo_tea;其他品牌用 --brand-re 覆盖
@@ -82,7 +82,6 @@ def _corpus_pool(axis: str, pairs_path: Path, min_len: int = 300) -> list[str]:
 
 def judge_axis(axis: str, product: list[str], corpus: list[str], n: int, k: int,
                workers: int) -> dict:
-    rng = random.Random(20260825)
     pairs = list(zip(product[:n], corpus[:n], strict=True))
     items: list[tuple[int, int, str, str]] = []
     for i, (prod, corp) in enumerate(pairs):

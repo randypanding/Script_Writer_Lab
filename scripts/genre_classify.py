@@ -18,8 +18,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from corpus_extract import docx_text, txt_text  # noqa: E402
-from lab import swarm  # noqa: E402
+from corpus_extract import docx_text, txt_text
+
+from lab import swarm
 
 GENRES = ["复仇爽文", "甜宠言情", "都市日常", "悬疑探秘", "玄幻仙侠", "历史穿越", "治愈成长", "其他"]
 
@@ -54,8 +55,10 @@ def _snippet(path: Path) -> str:
 
 def _build_instruction(items: list[dict]) -> str:
     parts = [
-        f"你是小说类型分类员。下面有 {len(items)} 部作品,请把每部归入一个题材桶。"
-        "只输出合法 JSON 数组,不要任何解释、问候、代码栅栏。",
+        (
+            f"你是小说类型分类员。下面有 {len(items)} 部作品,请把每部归入一个题材桶。"
+            "只输出合法 JSON 数组,不要任何解释、问候、代码栅栏。"
+        ),
         GENRE_DEFS,
         f'数组长度必须={len(items)},每个元素 {{"work": "w1/w2/... 编号照抄", "genre": "桶名照抄"}}。',
     ]

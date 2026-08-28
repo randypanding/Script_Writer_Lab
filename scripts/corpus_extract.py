@@ -16,14 +16,17 @@ import sys
 import zipfile
 from pathlib import Path
 
-EP_RE = re.compile(r"^\s*#*\s*第\s*[0-9０-９一二三四五六七八九十百零]{1,5}\s*集", re.M)
-CH_RE = re.compile(r"^\s*#*\s*第\s*[0-9０-９一二三四五六七八九十百千万零]{1,7}\s*[章回卷节]", re.M)
+EP_RE = re.compile(r"^\s*#*\s*第\s*[0-9０-９一二三四五六七八九十百零]{1,5}\s*集", re.MULTILINE)
+CH_RE = re.compile(r"^\s*#*\s*第\s*[0-9０-９一二三四五六七八九十百千万零]{1,7}\s*[章回卷节]", re.MULTILINE)
+#: 剧本"场号"式分集兜底(如 1-1/2-1/10-1:每集从 x-1 场开始,集号后可紧跟汉字)
+SCENE_EP_RE = re.compile(r"^\s*\d+\s*-\s*1(?!\d)", re.MULTILINE)
 
 
 def docx_text(path: Path) -> str:
     with zipfile.ZipFile(path) as z:
         xml = z.read("word/document.xml").decode("utf-8")
-    text = re.sub(r"<w:p[ >]", "\n", xml)
+    # <w:p> 可能带属性(w14:paraId 等)或自闭合;只剥开标签留换行,残属性会被下一行通配剥壳吃掉
+    text = re.sub(r"<w:p(?:\s[^>]*)?/?>", "\n", xml)
     text = re.sub(r"<[^>]+>", "", text)
     return html.unescape(text)
 
@@ -38,20 +41,28 @@ def txt_text(path: Path) -> str:
     return raw.decode("gb18030", errors="replace")
 
 
+def _cut(text: str, rex) -> list[tuple[str, str]]:
+    marks = list(rex.finditer(text))
+    units = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        body = text[m.end():end].strip()
+        if len(body) >= 200:  # 过短单元(扉页/目录)丢弃
+            units.append((m.group(0).strip(), body))
+    return units
+
+
 def split_units(text: str) -> list[tuple[str, str]]:
-    """按集/章切分;返回 [(标题行, 正文)]。两种标记都试,取切出更多单元的方案。"""
+    """按集/章切分;返回 [(标题行, 正文)]。集/章/场号三种标记都试,取切出最多单元的方案
+    (同数时 集>章>场号;一卡集剧本只有 x-1 场号式集首标记,靠场号兜底)。"""
     best: list[tuple[str, str]] = []
     for rex in (EP_RE, CH_RE):
-        marks = list(rex.finditer(text))
-        units = []
-        for i, m in enumerate(marks):
-            end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-            title = m.group(0).strip()
-            body = text[m.end():end].strip()
-            if len(body) >= 200:  # 过短单元(扉页/目录)丢弃
-                units.append((title, body))
+        units = _cut(text, rex)
         if len(units) > len(best):
             best = units
+    scene = _cut(text, SCENE_EP_RE)
+    if len(scene) >= 5 and len(scene) > len(best):  # 场号切分须成串(≥5)才候选,防零星时间戳误切
+        best = scene
     return best
 
 

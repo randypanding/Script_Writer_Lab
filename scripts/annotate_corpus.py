@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from lab import swarm  # noqa: E402
+from lab import swarm
 
 CARD_FIELDS = (
     'tension(1-5 整数,5=非看不可), hook_type(见下定义),'
@@ -42,8 +42,10 @@ TAXONOMY_DEFS = """类别定义(判定时严格遵守,有多个候选时取最�
 
 def build_instruction(units: list[dict]) -> str:
     parts = [
-        f"你是戏剧结构分析员。下面有 {len(units)} 个互不相关的短剧集/小说章。"
-        "对每个单元做戏剧机制标注,只输出一个合法 JSON 数组,不要任何解释、问候、代码栅栏。",
+        (
+            f"你是戏剧结构分析员。下面有 {len(units)} 个互不相关的短剧集/小说章。"
+            "对每个单元做戏剧机制标注,只输出一个合法 JSON 数组,不要任何解释、问候、代码栅栏。"
+        ),
         TAXONOMY_DEFS,
         f"数组长度必须={len(units)},每个元素字段:unit_id(照抄输入的 u1/u2 编号), {CARD_FIELDS}",
     ]
@@ -73,7 +75,7 @@ def parse_cards(reply: str, n: int) -> list[dict] | None:
 def _load_units(path: str, max_units: int) -> list[dict]:
     out = subprocess.run(
         ["uv", "run", "python", "scripts/corpus_extract.py", path, "--max-units", str(max_units)],
-        capture_output=True, text=True, cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True, text=True, cwd=Path(__file__).resolve().parent.parent, check=False,
     )
     return [json.loads(l) for l in out.stdout.splitlines() if l.strip()]
 

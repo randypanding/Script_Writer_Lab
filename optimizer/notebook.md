@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 27
+date: "2026-08-28"
+hypothesis: "治愈锚薄料的直接原因是金榜题名标注 0 卡;补标该作可把治愈锚加厚到 2 部 25 卡"
+surface: op.propose_check_rule
+change: "corpus_extract.py 双修(<w:p> 带属性剥壳残渣 + 场号 x-1 分集兜底);scripts/compute_anchors.py 新增(锚表可复现,聚合口径固化);genre_map 金榜题名 k=2 复核改判;craft_anchors_v2.json v2.1;v4 产物卡重标(out/annotate/南浪仔v4-script.jsonl,6 卡)"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: promoted
+sealed_score: null
+notes: "★复核实证:金榜题名六维形状(hook .80/person .60/张力 4.0-5.0-4.0)离治愈桶 L1 0.208,反而离历史/都市(0.17)更近;冻结分类器 k=2 双标两跑一致判'复仇爽文'——原'治愈'判定系单跑误差,按 W1.1 规则改判。genre_map 治愈桶 2→1,复仇桶 5→6 部(55→65 卡,锚 person .82→.78/hook .69→.71)。治愈锚保持 1 部 15 卡暂定态——语料内已无第二部治愈作品,补料正式卡在 owner 投放治愈语料。五维口径复现验证:六个未变动桶与 v2.0 冻结值逐项一致;张力曲线改池化等分三段口径(手算值有 ≤0.15 偏差,以脚本为准)。v4 复判(新鲜产物卡 n=6):vs 治愈锚 0.876/vs 复仇锚 0.671/vs v1 混锚 0.659——round26 的 1.000 系旧卡读数,n=6 单卡翻转 ±0.17,'六维满配'表述收回,但三锚读数排序不变(治愈形状确证),champion 维持 v4。★交接遗留:contract/.seal.lock.json 与 judges/objective.yaml 失配(6d30175 契约 v2 更新后未重封印),corpus_leak_guard 第三防线在干净树上即失败,重封印需 owner 的 LAB_SEAL_KEY(已验证本机无此 env)。"
+```
+```yaml
 round: 26
 date: "2026-08-28"
 hypothesis: "W1 分题材锚落地后,南浪仔 v4 的'缺口'应被证明是锚错位而非产物缺陷"

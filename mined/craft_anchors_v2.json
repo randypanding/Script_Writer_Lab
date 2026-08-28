@@ -1,26 +1,162 @@
 {
-  "version": "2.0",
+  "version": "2.1",
   "date": "2026-08-28",
-  "source": "522 卡(56 部,annotate k=3 多数票,标注器一致率 0.73)",
-  "note": "锚=各题材六维频率;治愈成长为暂定锚(仅 1 部 15 卡,未达 W1.1 验收线,待补料重标)",
-  "weights": {"hook_attack": 0.25, "conflict_person": 0.25, "info_gap": 0.20, "cliffhanger_rd": 0.15, "scene_turn": 0.15},
+  "source": "466 卡(40 部,annotate k=3 多数票,标注器一致率 0.73);聚合口径见 scripts/compute_anchors.py",
+  "note": "round27:金榜题名之寒门状元经分类器 k=2 复核由治愈成长改判复仇爽文(双标一致;其六维形状亦离治愈桶最远),复仇桶随之重算;治愈成长桶语料内仅 1 部,补料需 owner 投放治愈系语料至 corpus/inbox;张力曲线自本轮起按池化等分三段口径复算(五维与 v2.0 一致,曲线有 ≤0.15 手算偏差)",
+  "weights": {
+    "hook_attack": 0.25,
+    "conflict_person": 0.25,
+    "info_gap": 0.2,
+    "cliffhanger_rd": 0.15,
+    "scene_turn": 0.15
+  },
   "anchors": {
-    "复仇爽文": {"hook_attack": 0.69, "conflict_person": 0.82, "info_gap": 0.82, "cliffhanger_rd": 0.69, "scene_turn": 0.71, "tension_curve": [4.3, 4.5, 4.47], "n_works": 5, "n_cards": 55},
-    "甜宠言情": {"hook_attack": 0.72, "conflict_person": 0.86, "info_gap": 0.74, "cliffhanger_rd": 0.58, "scene_turn": 0.72, "tension_curve": [4.1, 4.13, 3.8], "n_works": 5, "n_cards": 50},
-    "都市日常": {"hook_attack": 0.78, "conflict_person": 0.72, "info_gap": 0.68, "cliffhanger_rd": 0.62, "scene_turn": 0.72, "tension_curve": [4.17, 4.23, 4.16], "n_works": 7, "n_cards": 80},
-    "悬疑探秘": {"hook_attack": 0.63, "conflict_person": 0.55, "info_gap": 0.85, "cliffhanger_rd": 0.61, "scene_turn": 0.71, "tension_curve": [4.26, 4.25, 4.21], "n_works": 6, "n_cards": 62},
-    "玄幻仙侠": {"hook_attack": 0.62, "conflict_person": 0.45, "info_gap": 0.69, "cliffhanger_rd": 0.59, "scene_turn": 0.64, "tension_curve": [4.03, 3.97, 4.25], "n_works": 8, "n_cards": 98},
-    "历史穿越": {"hook_attack": 0.52, "conflict_person": 0.50, "info_gap": 0.64, "cliffhanger_rd": 0.44, "scene_turn": 0.57, "tension_curve": [3.88, 3.78, 3.84], "n_works": 7, "n_cards": 96},
-    "治愈成长": {"hook_attack": 0.40, "conflict_person": 0.33, "info_gap": 0.47, "cliffhanger_rd": 0.27, "scene_turn": 0.47, "tension_curve": [3.4, 3.2, 3.4], "n_works": 1, "n_cards": 15, "provisional": true}
+    "历史穿越": {
+      "hook_attack": 0.52,
+      "conflict_person": 0.5,
+      "info_gap": 0.64,
+      "cliffhanger_rd": 0.44,
+      "scene_turn": 0.57,
+      "tension_curve": [
+        3.84,
+        3.66,
+        4.0
+      ],
+      "n_works": 7,
+      "n_cards": 96
+    },
+    "复仇爽文": {
+      "hook_attack": 0.71,
+      "conflict_person": 0.78,
+      "info_gap": 0.75,
+      "cliffhanger_rd": 0.66,
+      "scene_turn": 0.66,
+      "tension_curve": [
+        4.29,
+        4.48,
+        4.43
+      ],
+      "n_works": 6,
+      "n_cards": 65
+    },
+    "悬疑探秘": {
+      "hook_attack": 0.63,
+      "conflict_person": 0.55,
+      "info_gap": 0.85,
+      "cliffhanger_rd": 0.61,
+      "scene_turn": 0.71,
+      "tension_curve": [
+        4.35,
+        4.05,
+        4.32
+      ],
+      "n_works": 6,
+      "n_cards": 62
+    },
+    "治愈成长": {
+      "hook_attack": 0.4,
+      "conflict_person": 0.33,
+      "info_gap": 0.47,
+      "cliffhanger_rd": 0.27,
+      "scene_turn": 0.47,
+      "tension_curve": [
+        3.4,
+        3.2,
+        3.4
+      ],
+      "n_works": 1,
+      "n_cards": 15,
+      "provisional": true
+    },
+    "玄幻仙侠": {
+      "hook_attack": 0.62,
+      "conflict_person": 0.45,
+      "info_gap": 0.69,
+      "cliffhanger_rd": 0.59,
+      "scene_turn": 0.64,
+      "tension_curve": [
+        4.12,
+        4.0,
+        4.12
+      ],
+      "n_works": 8,
+      "n_cards": 98
+    },
+    "甜宠言情": {
+      "hook_attack": 0.72,
+      "conflict_person": 0.86,
+      "info_gap": 0.74,
+      "cliffhanger_rd": 0.58,
+      "scene_turn": 0.72,
+      "tension_curve": [
+        3.81,
+        4.5,
+        3.78
+      ],
+      "n_works": 5,
+      "n_cards": 50
+    },
+    "都市日常": {
+      "hook_attack": 0.78,
+      "conflict_person": 0.72,
+      "info_gap": 0.68,
+      "cliffhanger_rd": 0.62,
+      "scene_turn": 0.72,
+      "tension_curve": [
+        4.08,
+        4.23,
+        4.25
+      ],
+      "n_works": 7,
+      "n_cards": 80
+    }
   },
   "genre_keywords": {
-    "治愈成长": ["治愈", "松弛", "温暖", "陪伴", "自在"],
-    "复仇爽文": ["复仇", "打脸", "逆袭", "翻身", "虐渣"],
-    "甜宠言情": ["甜宠", "恋爱", "霸总", "娇妻", "心动"],
-    "都市日常": ["都市", "职场", "日常", "家庭"],
-    "悬疑探秘": ["悬疑", "谜团", "真相", "案件"],
-    "玄幻仙侠": ["修仙", "玄幻", "仙侠", "异能"],
-    "历史穿越": ["穿越", "重生", "古代", "朝代"]
+    "治愈成长": [
+      "治愈",
+      "松弛",
+      "温暖",
+      "陪伴",
+      "自在"
+    ],
+    "复仇爽文": [
+      "复仇",
+      "打脸",
+      "逆袭",
+      "翻身",
+      "虐渣"
+    ],
+    "甜宠言情": [
+      "甜宠",
+      "恋爱",
+      "霸总",
+      "娇妻",
+      "心动"
+    ],
+    "都市日常": [
+      "都市",
+      "职场",
+      "日常",
+      "家庭"
+    ],
+    "悬疑探秘": [
+      "悬疑",
+      "谜团",
+      "真相",
+      "案件"
+    ],
+    "玄幻仙侠": [
+      "修仙",
+      "玄幻",
+      "仙侠",
+      "异能"
+    ],
+    "历史穿越": [
+      "穿越",
+      "重生",
+      "古代",
+      "朝代"
+    ]
   },
   "default_anchor": "都市日常"
 }
