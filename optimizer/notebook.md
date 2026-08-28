@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 26
+date: "2026-08-28"
+hypothesis: "W1 分题材锚落地后,南浪仔 v4 的'缺口'应被证明是锚错位而非产物缺陷"
+surface: op.propose_check_rule
+change: "genre_classify.py(476 部入桶,考试 0.73)+W1.2 扩标 31 部(累计 56 部 522 卡)+mined/craft_anchors_v2.json(六桶锚带)+craft_bench --genre+docs/craft_taxonomy_v2.md"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: promoted
+sealed_score: null
+notes: "复判:v4 vs 治愈锚=1.000(六维全达/超标),vs 复仇锚=0.824,vs v1 混锚=0.839——'conflict person 缺口'确证为锚错位:复仇系 0.82 vs 治愈系 0.33,是题材工艺形状差异不是产物缺陷。champion v4 维持,证据链闭环。★警告:治愈锚=1 部 15 卡(薄料,未达 W1.1 验收线),补料重标前不做进一步工艺加压。题材分布另证:短剧语料复仇52+甜宠39 主导(混锚偏倚来源)。下轮含义:CRAFT-001 对治愈系降权,指令按题材参数化。"
+```
+```yaml
 round: 25
 date: "2026-08-28"
 hypothesis: "R4 季弧层 best-of-3 重排能推 conflict person 50%→爆款 83%(弧级'独自旅行'结构在 p2 定型)"
