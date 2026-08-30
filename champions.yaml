@@ -56,9 +56,13 @@ champions:
     date: "2026-08-27"
     artifact: "SW/out/南浪仔(R3 批,best-of-3 监制重排;一次全绿 3h03m)"
     craft_bench: 0.839
+    anchor_version: "v1(刻印时混题材锚);round27 起分题材复判=v2.1"
+    anchor_scores: {v1混锚: 0.659, v2.1复仇爽文: 0.671, v2.1治愈成长: 0.876}
     dev_scores: {transportation: 0.75, placement_integration: 0.85, l0_dialogue: 0.9091}
     contract: v2(ADR-0003)
     note: "contract v2 首个晋升:craft_bench 0.839 vs v3 0.559(+0.28 远超 0.02 阈值),
       transportation 0.750 平 v3 地板(噪声带内),placement/l0_dialogue 按 v2 只报告。
       craft 五维:hook 75%(=爆款)/cliffhanger 75%/scene_turn 88%/conflict person 50%/info_gap 50%。
-      剩余缺口:conflict person(50% vs 83%)、info_gap(50% vs 72%)——R4 主攻。"
+      剩余缺口:conflict person(50% vs 83%)、info_gap(50% vs 72%)——R4 主攻。
+      round26/27 分题材复判:治愈系 IP,三锚读数 0.876(治愈)/0.671(复仇)/0.659(v1 混锚),
+      治愈形状确证;刻印分 0.839 系旧产物卡混锚口径,保留作历史基准不作横比(round27 新鲜卡 n=6)."

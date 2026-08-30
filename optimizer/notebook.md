@@ -19,6 +19,17 @@ sealed_score: null          # 有 sealed 确认才填
 notes: "偏差/意外/下一假设"
 ```
 ```yaml
+round: 28
+date: "2026-08-31"
+hypothesis: "craft_shape 题材参数化(SW ADR-0019)后,治愈系 brief 全链路可完成且产物原生呈治愈形状(不强插反派);demo_tea 泛化可一过"
+surface: op.prompt_instructions
+change: "SW 4a8bbe6 spec/craft_shape.yaml+机制注入+签名/编译版p3 参数化+CRAFT-001 题材豁免(01c3856 修 JMESPath ||吞 false 与 assert 反逻辑双缺陷);Lab d2ccda4 CNB 主池切 zhuzhu-team/swarm-pool+写手角色(自定义NPC 才吃 cpus:1,系统@CodeBuddy 8核计费 8× 超耗实证),写手人格补数字目标纪律(mirror 471a41f)"
+ab: {briefs: 2, seeds: [1], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "★南浪仔验证跑 attempt3 全绿(70min,数字目标纪律后 DLG-006 绝迹):IR 实证无 antagonist(roles=protagonist/customer_proxy/ally/foil),hook 出现【悬】【承】温和标注——治愈形状原生落地。fresh 卡(n=6) vs 治愈锚 0.835(vs 复仇锚 0.531),与 v4 新鲜卡 0.876 在薄卡噪声带内等价:参数化未伤工艺且去除了错位冲突压力。champion 维持 v4(同锚对比 -0.04<噪声带,无晋升依据,未跑 judge 轴)。★W4 泛化结论:demo_tea 5 attempts 五种门禁死法(p2 空 hook×6/DLG-006 短对白×2 轮/CMP-002 疗效/p6 anchor_map 幻觉 line_id)——一过能力不迁移,harness 硬化是 brief 特异的(南浪仔吃了 round8-25 全部加固,demo_tea 没有);新 brief 上线需自己的加固周期或付费后端。★CNB 成本:写手 1 核池全链路跑通,核时降到原 1/8;两跑批+标注全程镜像池零故障。下轮候选:①治愈锚补料重标(卡 owner 语料);②demo_tea 专项加固轮(把五类死因逐个变机械兜底);③p6 anchor_map 幻觉 id 机械校验前置。"
+```
+```yaml
 round: 27
 date: "2026-08-28"
 hypothesis: "治愈锚薄料的直接原因是金榜题名标注 0 卡;补标该作可把治愈锚加厚到 2 部 25 卡"
