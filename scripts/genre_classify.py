@@ -91,7 +91,7 @@ def _parse(reply: str, n: int) -> list[str | None]:
 def _classify(items: list[dict], workers: int, pack: int = 5) -> list[str | None]:
     chunks = [items[i:i + pack] for i in range(0, len(items), pack)]
     instrs = [_build_instruction(c) for c in chunks]
-    replies = swarm.run_batch(instrs, workers=workers, timeout_s=600, mention="@CodeBuddy")
+    replies = swarm.run_batch(instrs, workers=workers, timeout_s=600, mention=swarm.WRITER_MENTION)
     out: list[str | None] = []
     for chunk, reply in zip(chunks, replies, strict=True):
         out.extend(_parse(reply, len(chunk)) if reply else [None] * len(chunk))

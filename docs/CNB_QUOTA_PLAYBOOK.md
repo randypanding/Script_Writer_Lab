@@ -57,3 +57,38 @@ uv run python -c "from lab.swarm import run_task; print(run_task('真实执行 n
 
 - 组织 → 设置 → 用量管理(我们令牌的 API 无用量查询端点,只能网页看);
 - 本侧账本:`transcripts/transcripts.db` 每次 swarm 调用一行(caller=`lab.judgekit.vote` 等),任务数 × 0.017 核时即本侧预估。
+
+## 7. round28 重大纠正:杠杆一原部署无效,正确机制=自定义 NPC(2026-08-28 实证)
+
+原 §3 杠杆一声称"把 .cnb.yml 放进池仓即对 NPC 事件降配 1 核"。**这是错的**——
+部署后所有生成/标注任务仍走 @CodeBuddy(系统 NPC)=平台默认流水线 **8 核计费**,
+当年"nproc=1"验证结果是假阳性(round28 复测:旧池 cgroup quota=800000 即 8 核)。
+
+### 实证结论(三个对照实验)
+
+| 提及目标 | nproc | 原因 |
+|---|---|---|
+| `@CodeBuddy`(系统 NPC) | 8 | 走平台默认流水线,**仓库 .cnb.yml 不参与合并** |
+| `@{pool}/(判官)`(自定义 NPC) | 1 | 自定义 NPC 合并其所属仓 `.cnb.yml` 的 `runner.cpus: 1` |
+| `@{pool}/(写手)`(自定义 NPC) | 1 | 同上 |
+
+即:**只有"自定义 NPC"才吃到本仓 `.cnb.yml` 的降配**。核时差距 = **8×**。
+此前所有生成/标注/改写任务(annotate/genre_classify/shim/degrade)都按 8 核计费——
+这是额度消耗远超预估的主因。判官投票(judgekit 默认 mention=判官)一直正确地跑在 1 核。
+
+### round28 的正确部署(已生效)
+
+1. 新建主池 `zhuzhu-team/swarm-pool`(全权限令牌;旧池 `Cloudbird-Software/swarm-pool`
+   转备用,100 窗口仍在,旧令牌备份于 .env 注释);
+2. 池仓 `.cnb/settings.yml` 定义两个自定义角色:**判官**(评判,只回字母)+**写手**
+   (生成/标注/改写,严格按指令输出要求格式,禁解释/栅栏/拒答);
+3. 代码侧生成 mention 全部 `@CodeBuddy` → `swarm.WRITER_MENTION`(env `CNB_WRITER_MENTION`
+   可覆盖,默认 `@{CNB_SWARM_REPO}(写手)`);lab.toml 两个 swarm 槽位 mention 同步指镜像;
+4. 写手人格实测:标注格式任务返回合法 JSON 数组零废话 + nproc=1;
+5. 主池窗口:#1–#30 已开(swarm 健康检查会在不足时自动补开,需令牌有 issue 写权限)。
+
+### 成本口径(修正后)
+
+- 1 核 NPC 任务 ≈ 0.017 核时/条(手册 §2 原计算现在才真正成立);
+- 同样 1600 核时/月:8 核跑法 ≈ 6 次全考量级 vs 1 核跑法 ≈ 48 次;
+- 监控:本侧 `transcripts/transcripts.db` 每调用一行,任务数 × 0.017 即核时预估。

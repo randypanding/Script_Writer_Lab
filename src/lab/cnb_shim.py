@@ -94,7 +94,7 @@ class ShimHandler(BaseHTTPRequestHandler):
             if len(instruction) > MAX_INSTRUCTION_CHARS:
                 raise ValueError(f"指令 {len(instruction)} 字符 > 护栏 {MAX_INSTRUCTION_CHARS}")
             reply = _strip_reply(swarm.run_task(instruction, work_mode=False, timeout_s=900,
-                                                mention="@CodeBuddy"))  # 生成任务不用判官人格(实证:判官拒答致 p0 解析失败)
+                                                mention=swarm.WRITER_MENTION))  # 生成任务走写手 NPC(1核降配;判官人格拒答致 p0 解析失败,系统 CodeBuddy 8核计费)
             # JSON 重试(实证:p0 最高频死法是 NPC 回散文;次高频是 ... 占位毒化——
             # 强约束重试把合规彩票前移,占位场景必须明说"禁止省略")
             tries = 0
@@ -104,7 +104,7 @@ class ShimHandler(BaseHTTPRequestHandler):
                           "（如 ...、{...}、\"Line[] 的 JSON...\"）。这次请只输出完整合法的 JSON 对象："
                           "所有字段写出完整内容，禁止省略占位、解释、问候、代码栅栏。")
                 reply = _strip_reply(swarm.run_task(strict, work_mode=False, timeout_s=900,
-                                                    mention="@CodeBuddy"))
+                                                    mention=swarm.WRITER_MENTION))
             rec["tries"] = tries
             rec["json_ok"] = _json_ok(reply)
             rec["reply_head"] = reply[:300]

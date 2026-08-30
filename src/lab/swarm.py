@@ -33,6 +33,9 @@ REPO = os.environ.get("CNB_SWARM_REPO", "Cloudbird-Software/swarm-pool")  # 专�
 ISSUE_POOL = range(1, 101)  # 初始窗口池(列表接口异常时的兜底)
 # 自定义 NPC 角色(定义于 swarm-pool 仓 .cnb/settings.yml);异常时退回系统 @CodeBuddy
 MENTION = os.environ.get("CNB_NPC_MENTION", f"@{REPO}(判官)")
+# 写手=生成/标注/改写用自定义 NPC(round28 实证:系统 @CodeBuddy 走平台默认流水线 8 核计费,
+# 自定义 NPC 才合并本仓 .cnb.yml 的 runner.cpus:1——核时省 8×;判官人格会回字母票不能用于生成)
+WRITER_MENTION = os.environ.get("CNB_WRITER_MENTION", f"@{REPO}(写手)")
 
 MAX_HEALTHY_COMMENTS = 80   # 100 评论封顶,留余量退役
 MIN_FREE_POOL = 20          # 健康空闲窗口低于此数自动补开
