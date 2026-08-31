@@ -3,8 +3,8 @@
  "algo": "sha256",
  "files": {
   "judges.yaml": "fc87ba0f02420ba38da7a532347ea62ca3144bc85a88ee71823572d8a3292710",
-  "objective.yaml": "d603ecfc15cfc9745a72f7fe40e66e334ec76ff9c2aaa28fb31a3fa7b5c58c4c",
+  "objective.yaml": "7f51655cec5f9a64a15b82ad9012c077ca4ef571bcc1afa18f33e7acddfe553d",
   "promotion.yaml": "cfa808b72b5ae6d0500fcac48841d2e34800eadbd002da8a9c929d700fb5a9ee"
  },
- "hmac": "215ef6d21dbe6a23959340e569e82da5b27a4b3345c7d943dd47dc128b085786"
+ "hmac": "6e35e26d826fa2725fcf371f5d82ac914712e055de0015af98df6fa54e8e3a6e"
 }
