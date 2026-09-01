@@ -34,7 +34,8 @@ def _schema() -> dict:
 
 AXES = {
     "naturalness", "hook_strength", "placement_integration", "transportation",
-    "producibility", "prose_craft", "l0_structure", "l0_fact", "l0_brand", "l0_dialogue",
+    "producibility", "prose_craft", "reading_attraction",
+    "l0_structure", "l0_fact", "l0_brand", "l0_dialogue",
 }
 LABELS = {"a_win", "b_win"}
 SPLITS = {"exam", "train", "val"}

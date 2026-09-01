@@ -1,8 +1,11 @@
 # ADR-0004：质量进攻路线——从"不出错"到"好读"的五项改造
 
-- 状态：proposed（2026-08-31 审查报告提出，待 owner 裁决后由 optimizer 逐项执行）
+- 状态：accepted（2026-09-01 owner 裁决按此路线执行；Lab 侧地基已落地，执行子项见 docs/QUALITY_OFFENSIVE_EXECUTION.md）
 - 影响层：SW spec/rubrics · SW src/nsc/passes/p6_prose.py · SW spec/checks · Lab criteria/ · 案例检索层
 - 关联：ADR-0001 L-D2（三锚）· ADR-0003（契约 v2）· SW docs/DEVELOPING.md 遗留问题清单
+- 落地状态（2026-09-01）：
+  - Lab 侧已落地：Q1 判官轴（criteria/reading_attraction.md + judgekit AXES 11 轴 + D18/D19 算子 + pairs/schema 同步）、Q3 门禁分层（spec/gates_layers.yaml）、Q5 套路注册表（spec/genre_shapes/）、训练路线（spec/training/ T1-T3）。
+  - SW 侧待执行（走对 SW 的 PR + ADR，见 QUALITY_OFFENSIVE_EXECUTION.md）：Q1 权重再平衡、Q2 p6 解绑、Q3 创作层规则退出修订循环、Q4 best-of-3、Q5 六桶映射与 L-D2 修订。
 
 ## 背景
 

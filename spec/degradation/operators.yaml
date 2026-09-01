@@ -80,3 +80,11 @@ operators:
     axis: naturalness
     mechanism: deterministic
     desc: 书面化:对白口语词替换为书面词(啥→什么/咋→怎么/咱→我们等)
+  - id: D18_flatten_ending
+    axis: reading_attraction
+    mechanism: llm_mid
+    desc: 章末钩子平铺化:把悬念/反转收尾改写为总结式平铺收束,保留事件内容但取消翻页冲动
+  - id: D19_void_hook
+    axis: reading_attraction
+    mechanism: deterministic
+    desc: 悬念空泛化:把章末具体悬念指向替换为空洞的"事情变得更复杂了"式泛化表述

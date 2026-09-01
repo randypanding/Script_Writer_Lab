@@ -1,0 +1,146 @@
+version: '2.1'
+date: '2026-08-28'
+weights:
+  hook_attack: 0.25
+  conflict_person: 0.25
+  info_gap: 0.2
+  cliffhanger_rd: 0.15
+  scene_turn: 0.15
+default: 都市日常
+shapes:
+  历史穿越:
+    anchor:
+      hook_attack: 0.52
+      conflict_person: 0.5
+      info_gap: 0.64
+      cliffhanger_rd: 0.44
+      scene_turn: 0.57
+    tension_curve:
+    - 3.84
+    - 3.66
+    - 4.0
+    provisional: false
+    n_works: 7
+    n_cards: 96
+    keywords:
+    - 穿越
+    - 重生
+    - 古代
+    - 朝代
+  复仇爽文:
+    anchor:
+      hook_attack: 0.71
+      conflict_person: 0.78
+      info_gap: 0.75
+      cliffhanger_rd: 0.66
+      scene_turn: 0.66
+    tension_curve:
+    - 4.29
+    - 4.48
+    - 4.43
+    provisional: false
+    n_works: 6
+    n_cards: 65
+    keywords:
+    - 复仇
+    - 打脸
+    - 逆袭
+    - 翻身
+    - 虐渣
+  悬疑探秘:
+    anchor:
+      hook_attack: 0.63
+      conflict_person: 0.55
+      info_gap: 0.85
+      cliffhanger_rd: 0.61
+      scene_turn: 0.71
+    tension_curve:
+    - 4.35
+    - 4.05
+    - 4.32
+    provisional: false
+    n_works: 6
+    n_cards: 62
+    keywords:
+    - 悬疑
+    - 谜团
+    - 真相
+    - 案件
+  治愈成长:
+    anchor:
+      hook_attack: 0.4
+      conflict_person: 0.33
+      info_gap: 0.47
+      cliffhanger_rd: 0.27
+      scene_turn: 0.47
+    tension_curve:
+    - 3.4
+    - 3.2
+    - 3.4
+    provisional: true
+    n_works: 1
+    n_cards: 15
+    keywords:
+    - 治愈
+    - 松弛
+    - 温暖
+    - 陪伴
+    - 自在
+  玄幻仙侠:
+    anchor:
+      hook_attack: 0.62
+      conflict_person: 0.45
+      info_gap: 0.69
+      cliffhanger_rd: 0.59
+      scene_turn: 0.64
+    tension_curve:
+    - 4.12
+    - 4.0
+    - 4.12
+    provisional: false
+    n_works: 8
+    n_cards: 98
+    keywords:
+    - 修仙
+    - 玄幻
+    - 仙侠
+    - 异能
+  甜宠言情:
+    anchor:
+      hook_attack: 0.72
+      conflict_person: 0.86
+      info_gap: 0.74
+      cliffhanger_rd: 0.58
+      scene_turn: 0.72
+    tension_curve:
+    - 3.81
+    - 4.5
+    - 3.78
+    provisional: false
+    n_works: 5
+    n_cards: 50
+    keywords:
+    - 甜宠
+    - 恋爱
+    - 霸总
+    - 娇妻
+    - 心动
+  都市日常:
+    anchor:
+      hook_attack: 0.78
+      conflict_person: 0.72
+      info_gap: 0.68
+      cliffhanger_rd: 0.62
+      scene_turn: 0.72
+    tension_curve:
+    - 4.08
+    - 4.23
+    - 4.25
+    provisional: false
+    n_works: 7
+    n_cards: 80
+    keywords:
+    - 都市
+    - 职场
+    - 日常
+    - 家庭

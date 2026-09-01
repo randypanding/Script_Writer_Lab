@@ -13,7 +13,8 @@ SPEC = yaml.safe_load(
 OP_IDS = [op["id"] for op in SPEC["operators"]]
 KNOWN_AXES = {
     "naturalness", "hook_strength", "placement_integration", "transportation",
-    "producibility", "prose_craft", "l0_structure", "l0_fact", "l0_brand", "l0_dialogue",
+    "producibility", "prose_craft", "reading_attraction",
+    "l0_structure", "l0_fact", "l0_brand", "l0_dialogue",
 }
 FIXTURE_TEXT = (Path(__file__).parent / "fixtures" / "corpus" / "mini_drama.txt").read_text(encoding="utf-8")
 

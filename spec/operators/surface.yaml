@@ -41,6 +41,12 @@ M3:   # 永不放权:优化器只能产出 ADR 建议文本,人类批准
   - op.propose_threshold_change  # eval/thresholds.yaml、contract/*
   - op.propose_rubric_change     # rubric 轴/权重/anchor
   - op.propose_surface_change    # 本表的增删
+# M3 已有提案授权(ADR-0004 accepted,2026-09-01)——优化 agent 可直接按
+# docs/QUALITY_OFFENSIVE_EXECUTION.md 消费,不必等新批准:
+#   Q1 rubric 权重再平衡(prose_craft→0.25/reading_attraction 0.15/...)
+#   Q3 创作层规则退出修订闭环(spec/gates_layers.yaml)
+#   Q5 六桶 craft_shape 全量映射(spec/genre_shapes/)+ L-D2 修订(owner 裁决点)
+# 以上仍需走"对 SW 的 PR + ADR"(Lab 宪法),只是提案文本已预置。
 
 explicitly_not_operators:   # 容易误以为是面的禁区
   - brief 分布规格(contract/objective.yaml::brief_distribution)——优化器训练分布由契约冻结

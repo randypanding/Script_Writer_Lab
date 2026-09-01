@@ -1,0 +1,99 @@
+# 结构约束术语 · spec/genre_shapes/structure_terms.yaml
+# 与 shapes.yaml(五维锚+张力曲线)配套的结构层形状——钩型/赌注/结局的题材化约束
+#
+# 说明:
+#   - shapes.yaml 的五维锚与张力曲线来自 522 卡实测(mined/craft_anchors_v2.json,契约冻结)。
+#   - 本文件把"结构约束"按题材参数化。**暂定映射**(provisional_constraint=true)是
+#     依据锚值推导的合理推断,未经 SW 编译实测;正式生效需在对 SW 的 PR 中过 craft_bench。
+#   - 命名沿用 SW spec/craft_shape.yaml 的字段(hook_types/stakes_escalation/arousal_peak/ending_beats)。
+
+version: 1
+default: 爆款通用
+constraints:
+  爆款通用:
+    note: 现行正向契约(R2/R3,315 卡混题材实证)——非治愈题材默认用它
+    provisional_constraint: false
+    antagonist_required: true
+    ensemble_scene_required: true
+    hook_types: [威胁, 承诺, 颠覆]
+    hook_other_allowed: false
+    stakes_escalation: strict
+    arousal_peak: 0.8
+    ending_beats: [reveal, danger]
+  复仇爽文:
+    note: 锚 v2(hook 0.71 / person 0.78 / info_gap 0.75 / cliff 0.66 / turn 0.66,张力 4.3/4.5/4.4 持续高位)
+    provisional_constraint: true
+    antagonist_required: true
+    ensemble_scene_required: true
+    hook_types: [威胁, 承诺, 颠覆]
+    hook_other_allowed: false
+    stakes_escalation: strict
+    arousal_peak: 0.9
+    ending_beats: [reveal, danger]
+  甜宠言情:
+    note: 锚 v2(hook 0.72 / person 0.86 / info_gap 0.74 / cliff 0.58 / turn 0.72,张力 3.8/4.5/3.8 后段回落)
+    provisional_constraint: true
+    antagonist_required: true        # person 冲突是甜宠引擎,但"对手"常为情敌/误会而非反派
+    ensemble_scene_required: true
+    hook_types: [承诺, 颠覆, 威胁]
+    hook_other_allowed: true
+    stakes_escalation: moderate      # 情感层赌注(关系/误会)而非物理层
+    arousal_peak: 0.7
+    ending_beats: [reveal, resolution]
+  都市日常:
+    note: 锚 v2(hook 0.78 / person 0.72 / info_gap 0.68 / cliff 0.62 / turn 0.72,张力 4.1/4.2/4.3 平稳高位)
+    provisional_constraint: true
+    antagonist_required: false       # 都市日常可无反派,靠生活困境与职场博弈
+    ensemble_scene_required: true
+    hook_types: [承诺, 颠覆, 威胁]
+    hook_other_allowed: true
+    stakes_escalation: moderate
+    arousal_peak: 0.7
+    ending_beats: [reveal, resolution]
+  悬疑探秘:
+    note: 锚 v2(hook 0.63 / person 0.55 / info_gap 0.85 / cliff 0.61 / turn 0.71,张力 4.4/4.1/4.3)
+    provisional_constraint: true
+    antagonist_required: true        # 悬疑对手=谜面,但冲突靠信息差而非正面对抗
+    ensemble_scene_required: false
+    hook_types: [承诺, 颠覆, 威胁]
+    hook_other_allowed: true
+    stakes_escalation: moderate
+    arousal_peak: 0.7
+    ending_beats: [reveal, danger]
+  玄幻仙侠:
+    note: 锚 v2(hook 0.62 / person 0.45 / info_gap 0.69 / cliff 0.59 / turn 0.64,张力 4.1/4.0/4.1 后段攀升)
+    provisional_constraint: true
+    antagonist_required: true
+    ensemble_scene_required: true
+    hook_types: [威胁, 承诺, 颠覆]
+    hook_other_allowed: false
+    stakes_escalation: strict
+    arousal_peak: 0.85
+    ending_beats: [reveal, danger]
+  历史穿越:
+    note: 锚 v2(hook 0.52 / person 0.50 / info_gap 0.64 / cliff 0.44 / turn 0.57,张力 3.8/3.7/4.0)
+    provisional_constraint: true
+    antagonist_required: false       # 历史穿越常无个人反派,靠时代压力与处境
+    ensemble_scene_required: false
+    hook_types: [承诺, 颠覆, 威胁]
+    hook_other_allowed: true
+    stakes_escalation: moderate
+    arousal_peak: 0.6
+    ending_beats: [reveal, resolution]
+  治愈成长:
+    note: 锚 v2 暂定(hook 0.40 / person 0.33 / info_gap 0.47 / cliff 0.27 / turn 0.47,张力 3.4/3.2/3.4 温暖低位)
+    provisional_constraint: true
+    antagonist_required: false
+    ensemble_scene_required: false
+    hook_types: [承诺, 颠覆, 威胁]   # 承诺/颠覆为主,威胁为辅
+    hook_other_allowed: true
+    stakes_escalation: gentle
+    arousal_peak: 0.6
+    ending_beats: [reveal, resolution]
+
+# 生效规则
+# 1. 判官评估时,若 shapes.yaml 的锚是 provisional(样本 <8 部),本文件的对应
+#    provisional_constraint 也必须为 true,只作参考不阻断。
+# 2. 对 SW 的 PR 中,把本文件映射进 spec/craft_shape.yaml(六桶全量),
+#    并以 craft_bench 实测验证各桶映射不破地板(transportation)。
+# 3. 结构与五维锚冲突时(如高冲突要求 vs 低 person 锚),以 shapes.yaml 锚为准。

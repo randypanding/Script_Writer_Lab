@@ -33,8 +33,18 @@ make ci                # Windows 无 make 时:uv run python scripts/ci.py(完全
 
 真实 LLM 相关(--run-llm 门控)与上游 SW 运行见 `docs/WORK_ORDERS.md` 各卡验收命令。
 
-## 状态(bootstrap)
+## 状态
 
-L-00 → L-17 代码全部落地,`make ci` 全绿;真实语料已入库(1600+ 部,2GB 级)。
-剩余开放项(无 API key / 等上游):L-03/L-08/L-17 的真实 LLM 跑、SW champion 刻印 —— 见各 PR 偏差记录。
-优化 agent 从 `OPTIMIZER.md` 进场。
+L-00 → L-17 代码全部落地,`make ci` 全绿(141 passed, 13 skipped)。
+质量进攻(ADR-0004, 2026-09-01)Lab 侧地基已落地:
+- **Q1 判官轴**:新增 `reading_attraction`(阅读吸引力·追读性)轴——criteria 6 信号 +
+  judgekit AXES 11 轴 + 退化算子 D18/D19 + pairs/schema 同步。
+- **Q3 门禁分层**:`spec/gates_layers.yaml`——81 条规则分账房 51(保留 block)/
+  创作 30(降级评价),机器可读。
+- **Q5 套路注册表**:`spec/genre_shapes/`——六桶锚 + 张力曲线 + 结构约束,机读形状卡。
+- **训练路线 T1-T3**:`spec/training/`——判官蒸馏 7B / craft 评分器 ≤2B / AI 味检测,
+  各含数据源与验收线。
+- **进场手册**:`docs/PM_ONBOARDING.md`(去环境路径,可执行) + `docs/QUALITY_OFFENSIVE_EXECUTION.md`(SW 侧执行清单)。
+SW 侧改动待执行(走对 SW 的 PR + ADR):Q1 权重 / Q2 p6 解绑 / Q3 创作层退出修订 / Q4 best-of-3 / Q5 六桶映射。
+剩余开放项(无 API key / 等上游):真实 LLM 跑、T1-T3 数据(owner 投料 R1-R5)、SW champion 刻印。
+优化 agent 从 `OPTIMIZER.md` + `docs/PM_ONBOARDING.md` 进场。

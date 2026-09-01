@@ -28,7 +28,8 @@ from lab.models import ROOT, _db_path, _resolve_client, _write_transcript
 
 CRITERIA_DIR = ROOT / "criteria"
 AXES = ("naturalness", "hook_strength", "placement_integration", "transportation",
-        "producibility", "prose_craft", "l0_structure", "l0_fact", "l0_brand", "l0_dialogue")
+        "producibility", "prose_craft", "reading_attraction",
+        "l0_structure", "l0_fact", "l0_brand", "l0_dialogue")
 BLOCK_OPS = ("D07_pov_break", "D08_inject_contradiction", "D09_brand_cut", "D14_setup_cut")
 
 
@@ -90,6 +91,7 @@ _AXIS_HINTS = {
     "naturalness": "自然度:对白像真人说话吗", "hook_strength": "钩子强度:开头抓人/结尾留钩吗",
     "placement_integration": "植入融合:商业信息融进剧情吗", "transportation": "代入感:信息给送顺畅吗",
     "producibility": "可拍性:制作元素在预算内吗", "prose_craft": "文笔:句法节奏与用词质量",
+    "reading_attraction": "阅读吸引力:读完想不想翻下一页,有没有可转述的记忆点",
     "l0_structure": "结构合规:视角/伏笔承接/beat 顺序", "l0_fact": "事实一致性:无硬矛盾",
     "l0_brand": "品牌合规:必覆盖卖点齐全", "l0_dialogue": "对白占比:对白驱动叙事",
 }

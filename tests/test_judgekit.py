@@ -50,10 +50,12 @@ def _cfg(client, k=1):
 
 def test_load_criteria_all_axes():
     for axis in ("naturalness", "hook_strength", "placement_integration", "transportation",
-                 "producibility", "prose_craft", "l0_structure", "l0_fact", "l0_brand", "l0_dialogue"):
+                 "producibility", "prose_craft", "reading_attraction",
+                 "l0_structure", "l0_fact", "l0_brand", "l0_dialogue"):
         crit = load_criteria(axis)
         assert len(crit) >= 3, f"{axis} 至少 3 个信号级子问题"
     assert "口语真实度" in load_criteria("naturalness")
+    assert "章末钩" in load_criteria("reading_attraction")
 
 
 def test_score_pair_position_swap_average():

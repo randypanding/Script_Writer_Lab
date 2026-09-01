@@ -1,0 +1,116 @@
+# 门禁分层清单 · spec/gates_layers.yaml
+# 质量进攻路线 Q3(ADR-0004)的可执行资产:把 SW spec/checks 下 81 条规则按对象分层。
+#
+# 分层原则(对照 narracat 分层纪律 + 本项目营销目标约束):
+#   - accounting(账房层):写"什么"的硬约束 —— 合规/品牌事实/可拍性/一致性/结构完整性。
+#     营销目标的必要条件,severity:block 保留,继续驱动修订闭环(修订 brief 的 PROBLEM 段)。
+#   - craft(创作层):写"怎么"的主观质量 —— 文笔/节奏/反AI/工艺引导(爆款实证频率)。
+#     从修订闭环的 WHAT TO CHANGE 摘除,降级为"度量+范例引导"(仍进 dashboard,不阻断)。
+#
+# 用途:
+#   1. 优化 agent 进场后按此清单对 SW 提 PR(见 ADR-0004 Q3 执行步骤);
+#   2. boot_check 校验本文件存在(已在 scripts/boot_check.py);
+#   3. 修订 brief 消费方(revision_brief.py)可按本清单过滤 craft 层规则。
+# 改动需 ADR(本文件属 spec/ 资产)。
+
+version: 1
+source: "randypanding/Script_Writer(Developing)::spec/checks/"
+count:
+  total: 81
+  accounting: 51
+  craft: 30
+
+accounting:  # 保留在修订闭环(block/warn 语义不变)
+  reason: "合规红线、品牌契约、可拍性、事实一致性、结构完整性——营销目标与制作交付的硬约束"
+  groups:
+    - id_prefix: CMP
+      count: 7
+      reason: "平台合规红线(绝对化/疗效/暴恐/色情/政治/迷信/霸凌词)——交付底线"
+      dispose: keep_in_revision
+    - id_prefix: BM
+      count: 13
+      reason: "品牌植入契约(密度/间距/必覆盖/规范名/竞品排除)——营销目标本体"
+      dispose: keep_in_revision
+    - id_prefix: FCT
+      count: 5
+      reason: "事实一致性(产品参数/抄袭检测/伏笔回收/暗线因果)——不能骗商家"
+      dispose: keep_in_revision
+    - id_prefix: PRD
+      count: 3
+      reason: "可拍性(场地成本/角色上限/场地可用性)——短剧制作预算硬约束"
+      dispose: keep_in_revision
+    - id_prefix: STR
+      count: 18
+      reason: "结构完整性(钩/终态/beat数/场景数/主角在场/承重节拍/情感弧)——叙事骨架"
+      dispose: keep_in_revision
+    - id: DLG-001
+      reason: "对白禁用词(品牌方+合规清单)"
+      dispose: keep_in_revision
+    - id: DLG-002
+      reason: "台词字数上限(镜头节奏/制作)"
+      dispose: keep_in_revision
+    - id: DLG-003
+      reason: "说话人在场校验(制作可执行)"
+      dispose: keep_in_revision
+    - id: DLG-006
+      reason: "对白体量地板(时长预算)——制作硬约束"
+      dispose: keep_in_revision
+    - id: NOV-001
+      reason: "章节覆盖 Beat(戏剧功能锚定,ADR-0004 Q2 将逐字织入放宽为 beat 级)"
+      dispose: keep_in_revision
+
+craft:  # 从修订闭环摘除,降级为评价类(度量 + 范例引导,不阻断)
+  reason: "文笔/节奏/反AI 套话/工艺频率引导——'怎么写'的主观质量,靠喂真人范例与选择压力提升,而非规则阻断"
+  groups:
+    - id_prefix: PRS
+      count: 16
+      reason: "文笔与节奏(段落/句长变异、疲劳修辞、模糊限定、逻辑连接词、惊讶标记、对仗/元叙述/策划术语/章节自引用/破折号等)——反AI 模板感"
+      dispose: metric_only  # 仍度量、进 dashboard,从 WHAT TO CHANGE 摘除
+    - id: NOV-002
+      reason: "对白与剧本差异(相似度)——Q2 解绑后语义变化,降为度量"
+      dispose: metric_only
+    - id: NOV-003
+      reason: "超长段落(手机端阅读)——度量"
+      dispose: metric_only
+    - id: NOV-004
+      reason: "抽象情绪标签句——度量,范例引导替代"
+      dispose: metric_only
+    - id: NOV-005
+      reason: "AI 高频套话——度量(与 Lab slop_lexicon 联动)"
+      dispose: metric_only
+    - id: NOV-006
+      reason: "弱化拟态词密度——度量"
+      dispose: metric_only
+    - id: NOV-007
+      reason: "程度副词密度——度量"
+      dispose: metric_only
+    - id: NOV-008
+      reason: "时间流水账开头——度量"
+      dispose: metric_only
+    - id: NOV-009
+      reason: "角色缺陷/成长弧缺失——创作引导"
+      dispose: metric_only
+    - id: DLG-004
+      reason: "角色 voice 命中率——文笔(角色口吻)"
+      dispose: metric_only
+    - id: DLG-005
+      reason: "重复台词率——度量"
+      dispose: metric_only
+    - id: DLG-007
+      reason: "纯对白场景(缺动作行)——创作"
+      dispose: metric_only
+    - id: DLG-008
+      reason: "'不是X而是Y'对仗句式——反AI"
+      dispose: metric_only
+    - id: CRAFT-001
+      reason: "主角与对手同场(爆款 83% 实证)——工艺引导,治愈系豁免(craft_shape)"
+      dispose: metric_only
+    - id: CRAFT-002
+      reason: "知识状态声明(爆款 72% 实证)——工艺引导"
+      dispose: metric_only
+
+# 消费说明
+# 1. revision_brief.py(或对 SW 的 PR)按本清单过滤:craft 层规则不进 WHAT TO CHANGE。
+# 2. craft 层的度量结果仍进 SW 的 eval 报告与 Lab 五面板(不丢信息)。
+# 3. CRAFT-001/002 已有题材豁免机制(SW spec/craft_shape.yaml),治愈系按锚放宽。
+# 4. 本清单是"现状分类"而非"永久冻结":新增/删除规则时按同样原则归类。

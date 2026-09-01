@@ -462,6 +462,46 @@ def _d16_formalize_tone(text: str, severity: float, seed: int) -> str:
     return _join(out)
 
 
+# ---- D18/D19:reading_attraction 轴缺陷源(ADR-0004 Q1) ----
+# 悬念/钩子相关标记(验真用;语料解析约定见 spec/parsing_conventions.md)
+_HOOK_PHRASES_RE = re.compile(r"[？！?!]|【钩子】|【悬念】|【反转】|难道|到底|偏偏|竟然|原来|却")
+
+
+def _d18_flatten_ending(text: str, severity: float, seed: int) -> str:
+    """D18 章末钩平铺化(reading_attraction,llm_mid):把结尾悬念改写为总结式收尾。"""
+    return _llm_rewrite(
+        "把结尾的悬念/未决问题改写为总结式平铺收束:事件与信息全部保留,删去追问感与留白,"
+        "像作者收笔时把结局说尽", text, severity, seed)
+
+
+def _d19_void_hook(text: str, severity: float, seed: int) -> str:
+    """D19 悬念空泛化(reading_attraction,deterministic):章末具体悬念指向 → 空泛表述。
+
+    实证动机:读者追读的燃料是"指向具体对象的缺口"(某封信/某个决定);把指向抹成
+    "事情变得更复杂"式的泛化句,缺口消失,翻页冲动归零。确定性、可验真。"""
+    lines = _lines(text)
+    if not lines:
+        return text
+    # 找章末附近带悬念标记的非空行
+    tail_idx = [i for i, ln in enumerate(lines) if ln.strip() and _HOOK_PHRASES_RE.search(ln)]
+    if not tail_idx:
+        # 无悬念标记:把最后一句改写为空泛句(退而求其次,保证可见变化)
+        lines[-1] = "事情,似乎变得比想象中更加复杂了。"
+        return _join(lines)
+    # 把最靠后的悬念句整体替换为空泛句,保留其前后结构
+    victim = tail_idx[-1]
+    # 若该行本身较短且带句末标点,整行替换;否则仅把问句尾巴换掉
+    if len(lines[victim].strip()) <= 60:
+        lines[victim] = "事情,似乎变得比想象中更加复杂了。"
+    else:
+        lines[victim] = re.sub(
+            r"[^。！？!?\n]*[？！?!][」』”]?$",
+            "事情,似乎变得比想象中更加复杂了。",
+            lines[victim],
+        )
+    return _join(lines)
+
+
 def _sent_cv(text: str) -> float:
     lens = [len(s) for s in re.split(r"[。!?…!??]+", text) if len(s.strip()) >= 2]
     if len(lens) < 3:
@@ -503,7 +543,17 @@ VERIFY: dict[str, Callable[[str, str], bool]] = {
     "D15_producibility_break": lambda o, d: len(d) > len(o),
     "D16_formalize_tone": lambda o, d: _modal_hits(d) < _modal_hits(o),
     "D17_decolloquialize": lambda o, d: _colloq_hits(d) < _colloq_hits(o),
+    # D18 llm_mid 平铺化:验真不可靠(同 D03 逻辑,改写质量随机) → 依赖构造保证
+    "D18_flatten_ending": lambda o, d: _verifiable_len(d) > 0,
+    "D19_void_hook": lambda o, d: (
+        "事情,似乎变得比想象中更加复杂了。" in d
+        and "事情,似乎变得比想象中更加复杂了。" not in o),
 }
+
+
+def _verifiable_len(text: str) -> int:
+    """D18 验真占位:仅保证改写后文本非空(缺陷由构造指令注入,不依赖模型判对)。"""
+    return len(text.strip())
 
 
 def verify_pair(op_id: str | None, orig: str, degraded: str) -> bool:
@@ -539,6 +589,8 @@ _IMPL: dict[str, Callable[[str, float, int], str]] = {
     "D15_producibility_break": _d15_producibility_break,
     "D16_formalize_tone": _d16_formalize_tone,
     "D17_decolloquialize": _d17_decolloquialize,
+    "D18_flatten_ending": _d18_flatten_ending,
+    "D19_void_hook": _d19_void_hook,
 }
 
 

@@ -30,6 +30,16 @@
   采样/best-of-n、profile 数值旋钮、渲染声音。
 - **M2(判官闸门 ON 后)**:记忆注入/装配器/压缩、检索参数、图重试、子步骤开关、revise 阈值。
 - **M3(永不做)**:check 规则、阈值、rubric、优化面本身。
+## 质量进攻(ADR-0004)会话入口
+质量进攻 = 五项改造(Q1-Q5)+ 训练路线(T1-T3),owner 已裁决执行(ADR-0004 accepted)。
+Lab 侧资产已就绪,**你的会话直接消费**:
+- Q1 判官轴:criteria/reading_attraction.md + judgekit 11 轴 + D18/D19(可直接跑退化对)。
+- Q3 门禁分层:spec/gates_layers.yaml(修订 brief 消费方按此过滤 craft 层)。
+- Q5 套路:spec/genre_shapes/(六桶锚 + 曲线 + 结构约束,判官评估可引用)。
+- T1-T3:spec/training/(数据到位后按验收线执行,各写 ADR-0005/0006/0007)。
+**SW 侧改动一律走对 SW 的 PR + ADR**(Lab 宪法第三条),提案文本已预置
+`docs/QUALITY_OFFENSIVE_EXECUTION.md`——你的职责是按执行清单逐项推进并打勾,
+不是重新提案。执行顺序约束:Q5 投料先于 Q3 全量降级;T1→T2→T3。
 
 ## 健康带自检(开轮前看面板)
 
