@@ -238,3 +238,14 @@ decision: rejected
 sealed_score: null
 notes: "dry-run(mock LLM):管线活性验证通过;判官闸门 OFF,分数仅报告。"
 ```
+```yaml
+round: "PM-2026-09-01"
+date: "2026-09-01"
+hypothesis: "PM 进场协调轮(非优化轮,不打分):资源接线+demo_tea 加固+Q1/Q5 启动,为后续 M1/M2 轮次铺路"
+surface: n/a
+change: "①R1 key 接线:longcat 402 枯竭→glm-5.3-flash(GEN/DEV)+stepfun(SEALED),Lab/SW 模型槽位 failover 已合并(Lab#6/SW#22);②demo_tea 五死因机械兜底 5/5 闭环(SW#17-20 四 PR+STR-014 查实 round14 已闭环);③红队计划(Lab#4+SW#21,51 账房规则 17 用例);④slop_lexicon 品牌假阳性清洗(Lab#3,T3 前置);⑤Q1 rubric 第七轴+权重再平衡(SW#23,ADR-0020 proposed);⑥R5 语料:夸克免登链路打通,2286 文件 7.39GB 入 corpus/inbox,ingest 完成(1609 部,254 重复,367 跳过);⑦glm e2e:p0/p1 字段漂移(*_json→*_)修复(SW#24),全管线验证中"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "非实验轮,无接受权问题。遗留:R3 原机 1665 部 card/pairs 仍缺(T1 与判官考试 ≥100 对/轴的真卡点);治愈锚显性命名仅 1 部,大概率不达 ≥8 部验收线;hk-gateway 白名单路由广播丢失(git/gh 走 ghfast.top 代理可用);judge-cal 待 SW#23 合并后补跑。"
+```
