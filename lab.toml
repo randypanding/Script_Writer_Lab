@@ -8,12 +8,14 @@ out = "out"
 
 [models]
 # 槽位 -> 模型。改本文件不需要 ADR;改 contract/judges.yaml 的家族约束需要。
-# 百炼接入点(ali-model.txt);模型按配额实测选定:glm-5/deepseek-r1/qwen3-coder-plus/qwen3.6-flash 可用
-generation = { model = "qwen3-coder-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
-generation_strong = { model = "qwen3.6-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
-judge_dev = { model = "deepseek-r1", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
-judge_sealed = { model = "glm-5", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
-synthesis = { model = "qwen3-coder-plus", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+# 2026-09-01 PM 进场实测 v2:longcat key 聊天额度 402 枯竭,弃用;
+# GEN/DEV=bigmodel glm-5.3-flash(coding paas 端点),SEALED=stepfun step-3.7-flash(跨家族,09-19 到期)。
+# 历史模型名备查:generation=qwen3-coder-plus generation_strong=qwen3.6-flash judge_dev=deepseek-r1 judge_sealed=glm-5;longcat=LongCat-2.0
+generation = { model = "glm-5.3-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+generation_strong = { model = "glm-5.3-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
+judge_dev = { model = "glm-5.3-flash", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
+judge_sealed = { model = "step-3.7-flash", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
+synthesis = { model = "glm-5.3-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
 # CNB 免费沙箱集群(随机后端模型,零成本):dev 判官投票/合成改写用;sealed 永不用它
 # mention 路由 NPC 人格(都定义于 swarm-pool 仓 .cnb/settings.yml):判官只用于评判;
 # 生成/改写/标注用「写手」(round28 实证:系统 @CodeBuddy 走平台默认流水线 8 核计费,
