@@ -49,19 +49,28 @@ def load_our_texts(script_writer_out: str | Path | None = None) -> list[str]:
         texts.append(p.read_text(encoding="utf-8", errors="ignore"))
     return texts
 
+def load_brand_exclusions(path: str | Path) -> set[str]:
+    """品牌专名排除表 → 短语集合。这些词因品牌设定在生成物高频出现,
+    被 PMI 误判为模型腔,需在聚合阶段剔除(可复现,不写业务 if)。"""
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return {e["phrase"] for e in data.get("entries", []) if e.get("phrase")}
+
+
 def build_lexicon(
     our_texts: list[str],
     drama_texts: list[str],
     novel_texts: list[str],
     top: int = 150,
     quotas: dict[str, int] | None = None,
+    exclusions: set[str] | None = None,
 ) -> list[dict]:
     """词典条目:phrase / pmi / source(our_vs_drama | drama_vs_novel | seed)。
 
     噪声防线:专名(人名/地名)是最大噪声源——单部剧本专属、提升度虚高。
     规则:corpus 侧条目必须跨 ≥3 部出现(df 约束),专名天然被滤除;
     our 侧(样本尚小)必须 df≥2 且语料中存在;纯新造模型腔交给 seed 先验。
-    配额:三来源按 quotas 分配,防单一信号挤占词典。"""
+    配额:三来源按 quotas 分配,防单一信号挤占词典。
+    exclusions:品牌专名排除表(短语集合),命中者聚合阶段一律剔除,不占配额。"""
     entries: dict[str, dict] = {}
     drama_df = _doc_freqs(drama_texts)
 
@@ -104,6 +113,10 @@ def build_lexicon(
     # 信号 3:内置种子(D05 同源)
     for s in SLOP_SEEDS:
         entries.setdefault(s, {"phrase": s, "pmi": None, "source": "seed"})
+
+    # 品牌专名清洗:排除表内的短语一律剔除(不占配额),防 PMI 假阳性回流
+    for phrase in exclusions or ():
+        entries.pop(phrase, None)
 
     quotas = quotas or {"our_vs_drama": top // 5, "drama_vs_novel": top - top // 5 - len(SLOP_SEEDS),
                         "seed": len(SLOP_SEEDS)}
@@ -163,8 +176,10 @@ def detect(text: str, lexicon_path: str | Path | None = None) -> float:
     return round(hits * 1000 / nonws, 4)
 
 def run(mined_dir: str | Path = "mined", store_dir: str | Path = "corpus/store",
-        script_writer_out: str | Path | None = None, top: int = 150) -> dict:
+        script_writer_out: str | Path | None = None, top: int = 150,
+        exclusions_path: str | Path | None = None) -> dict:
     """主入口:store 语料 + SW 生成物 → 词典落盘。返回摘要。"""
+    from lab.models import ROOT
     store = Path(store_dir)
     drama_texts, novel_texts = [], []
     for card_file in sorted(store.glob("card_*.json")):
@@ -176,7 +191,8 @@ def run(mined_dir: str | Path = "mined", store_dir: str | Path = "corpus/store",
         text = tf.read_text(encoding="utf-8", errors="ignore")[:200_000]
         (drama_texts if card["kind"] == "drama_script" else novel_texts).append(text)
     our_texts = load_our_texts(script_writer_out)
-    entries = build_lexicon(our_texts, drama_texts, novel_texts, top=top)
+    exclusions = load_brand_exclusions(exclusions_path if exclusions_path else ROOT / "mined" / "brand_proper_nouns.yaml")
+    entries = build_lexicon(our_texts, drama_texts, novel_texts, top=top, exclusions=exclusions)
     write_outputs(entries, mined_dir, n_drama=len(drama_texts), n_novel=len(novel_texts))
     return {"entries": len(entries), "our_texts": len(our_texts),
             "drama": len(drama_texts), "novel": len(novel_texts)}

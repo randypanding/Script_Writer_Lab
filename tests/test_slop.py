@@ -2,7 +2,7 @@
 
 import yaml
 
-from lab.slop import build_lexicon, detect, write_outputs
+from lab.slop import build_lexicon, detect, load_brand_exclusions, write_outputs
 
 
 def test_lexicon_meets_quota_with_pmi():
@@ -41,3 +41,32 @@ def test_write_outputs_and_detect(tmp_path):
         assert reg.get(k)
     d = detect("他的眼中闪过一丝不易察觉的复杂情绪。", tmp_path / "slop_lexicon.yaml")
     assert d > 0  # 命中至少一次
+
+
+def test_build_lexicon_applies_exclusions():
+    # 小林在生成物高频、语料跨部出现(df=2)→ 本会作为 our_vs_drama 条目入围;排除集应剔除它
+    our = ["小林把茶叶递到她面前,小林说。", "小林走进门店吧台,小林转身。"] * 6
+    drama = ["小林在柜台前把茶叶递过去。", "小林说这茶谁敢喝。", "阿婆愣住了。"] * 6
+    novel = ["山间的雾气漫过竹林,他想起多年前的事。", "船行千里,岸上的灯火渐次熄灭。"] * 20
+    entries = build_lexicon(our, drama, novel, top=150, exclusions={"小林"})
+    phrases = {e["phrase"] for e in entries}
+    assert "小林" not in phrases, "排除集内的品牌专名必须从词典剔除"
+    # 排除集机制是通用集合差,不影响非排除条目
+    assert any(e["source"] == "our_vs_drama" for e in entries)
+
+
+def test_slop_lexicon_free_of_known_brand_fp():
+    # 回归守卫:落盘的品牌专名假阳性(T3 前置清洗对象)必须已清除
+    from lab.models import ROOT
+    data = yaml.safe_load((ROOT / "mined" / "slop_lexicon.yaml").read_text(encoding="utf-8"))
+    phrases = {e["phrase"] for e in data.get("entries", [])}
+    assert "小林" not in phrases, "小林系品牌角色专名假阳性,必须清洗"
+    assert "门店吧台" not in phrases, "门店吧台系品牌场景专名假阳性,必须清洗"
+
+
+def test_load_brand_exclusions():
+    from lab.models import ROOT
+    exclusions = load_brand_exclusions(ROOT / "mined" / "brand_proper_nouns.yaml")
+    assert isinstance(exclusions, set)
+    # 已知假阳性必须在排除表中(T3 前置)
+    assert {"小林", "门店吧台"}.issubset(exclusions), "排除表必须收录已知的品牌专名假阳性"
