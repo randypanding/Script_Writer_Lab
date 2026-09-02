@@ -157,7 +157,7 @@ def build_corpus_degraded(
     llm_mid_scripts: int = 300,
     rng_seed: int = 7,
     checkpoint: str | Path | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], Counter[str]]:
     """store 全部语料 × deterministic(可选 llm_mid)算子 → 偏好对列表。
 
     片段截取:_narrative_excerpt(跳过片头元数据,两种文体)。
@@ -182,6 +182,7 @@ def build_corpus_degraded(
 
     store = Path(store_dir)
     pairs: list[dict[str, Any]] = []
+    skipped: Counter[str] = Counter()
     done_keys: set[tuple[str, str, float]] = set()
     ckpt_path = Path(checkpoint) if checkpoint else None
     ckpt_lock = _th.Lock()
@@ -220,7 +221,9 @@ def build_corpus_degraded(
                 continue
             for sev in severities:
                 degraded = op.apply(fragment, sev, rng_seed)
-                if degraded == fragment:
+                if not degraded or not degraded.strip() or degraded == fragment:
+                    if not degraded or not degraded.strip():
+                        skipped[op_id] += 1
                     continue
                 pairs.append(build_pair(
                     axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
@@ -236,7 +239,7 @@ def build_corpus_degraded(
             degraded = op.apply(fragment, sev, rng_seed)
         except (TimeoutError, OSError, RuntimeError):
             return None  # 单个改写失败(死窗/超时)跳过,不拖死整场(实证)
-        if degraded == fragment:
+        if not degraded or not degraded.strip() or degraded == fragment:
             return None
         pair = build_pair(axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
                           construction={"kind": "corpus_degraded", "op_id": op_id,
@@ -259,7 +262,7 @@ def build_corpus_degraded(
                 if done_n % 100 == 0:
                     print(f"[pairs] llm_mid 进度 {done_n}/{len(llm_jobs)} @ "
                           f"{time.strftime('%H:%M:%S')}", flush=True)
-    return pairs
+    return pairs, skipped
 
 
 def build_gen_degraded(
@@ -267,7 +270,7 @@ def build_gen_degraded(
     *,
     severities: tuple[float, ...] = (0.5, 1.0),
     rng_seed: int = 7,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], Counter[str]]:
     """来源 2:我们生成物 × 退化算子(gen_degraded)。标签由构造保证(原版优于退化版)。
 
     gen_texts: [(run_id, text)] —— run_id 作为 source_run_id 与切分键(同 run 的对同 split)。
@@ -275,6 +278,7 @@ def build_gen_degraded(
     from lab.degrade import REGISTRY
 
     pairs: list[dict[str, Any]] = []
+    skipped: Counter[str] = Counter()
     for run_id, text in gen_texts:
         fragment = text[:1200]
         for op_id, op in sorted(REGISTRY.items()):
@@ -282,7 +286,9 @@ def build_gen_degraded(
                 continue
             for sev in severities:
                 degraded = op.apply(fragment, sev, rng_seed)
-                if degraded == fragment:
+                if not degraded or not degraded.strip() or degraded == fragment:
+                    if not degraded or not degraded.strip():
+                        skipped[op_id] += 1
                     continue
                 pairs.append(build_pair(
                     axis=op.axis, a_text=fragment, b_text=degraded, label="a_win",
@@ -290,7 +296,7 @@ def build_gen_degraded(
                                   "severity": sev, "source_run_id": run_id},
                     split=_split_of(f"run:{run_id}"),
                 ))
-    return pairs
+    return pairs, skipped
 
 
 # 轴 → 语料锚指标(用于 corpus_vs_gen 的构造性标签;偏离带 = 语料锚意义上的劣,ADR L-D2)
@@ -422,19 +428,23 @@ def main(argv: list[str] | None = None) -> int:
         sevs = tuple(float(x) for x in args.severities.split(",") if x.strip())
         ckpt = (Path(args.out) / "partial_llm.jsonl") if args.llm_mid else None
         print(f"[pairs] 阶段 1/4 corpus_degraded 开始 @ {time.strftime('%H:%M:%S')}", flush=True)
-        pairs = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid,
+        pairs, skipped = build_corpus_degraded(args.store, severities=sevs, llm_mid=args.llm_mid,
                                       llm_mid_scripts=args.llm_mid_limit, checkpoint=ckpt)
         print(f"[pairs] 阶段 2/4 gen_degraded(累计 {len(pairs)})", flush=True)
         gen_texts = _gen_texts_from_runs(args.gen_dir)
-        pairs += build_gen_degraded(gen_texts, severities=sevs)
+        gen_pairs, gen_skipped = build_gen_degraded(gen_texts, severities=sevs)
+        pairs += gen_pairs
         print(f"[pairs] 阶段 3/4 corpus_vs_gen(累计 {len(pairs)})", flush=True)
         pairs += build_corpus_vs_gen(args.store, gen_texts)
         assert_no_split_leakage(pairs)
         counts = write_jsonl(pairs, args.out)
         kinds = Counter(p["construction"]["kind"] for p in pairs)
+        ops = Counter(p["construction"]["op_id"] for p in pairs if p["construction"].get("op_id"))
+        report: dict[str, Any] = {"total": len(pairs), **counts, "kinds": dict(kinds), "ops": dict(ops)}
+        if skipped or gen_skipped:
+            report["skipped_empty"] = dict(skipped + gen_skipped)
         print(f"[pairs] 阶段 4/4 写盘完成 @ {time.strftime('%H:%M:%S')}", flush=True)
-        print(json.dumps({"total": len(pairs), **counts, "kinds": dict(kinds)},
-                         ensure_ascii=False))
+        print(json.dumps(report, ensure_ascii=False))
         return 0
     return 1
 
