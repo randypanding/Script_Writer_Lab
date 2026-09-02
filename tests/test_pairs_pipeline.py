@@ -170,7 +170,7 @@ def test_single_line_fragment_skips_empty_degraded(tmp_path, monkeypatch):
     store = tmp_path / "store"
     store.mkdir()
     sid = "scr:singleline01"
-    long_line = "冷月如霜一、玉树琼枝作烟罗四更时分，如霜冻得醒来，外头飒飒的一片轻响，窗棂泛起白光，原来是下雪了。如霜脚上原本就生了冻疮，又痛又痒，忍不住轻轻的在被子里摩挲，这"
+    long_line = "架空合成单行文本用于验证超长单行的截取逻辑山城雾气弥漫渡口人来人往她裹紧外衣继续向前走谁也不知道明天会怎样但此刻她只想把手头的事情做完。"
     text = long_line * 20 + "\n" + "第二行足够长以满足 narrative_excerpt 的 long_paras>=2 条件。" * 5
     assert len(text.splitlines()) == 2
     assert len(text.splitlines()[0]) >= 1200
