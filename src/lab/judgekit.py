@@ -41,6 +41,8 @@ class _RecordingCompletions:
         resp = self._inner.create(**kw)
         prompt = json.dumps(kw.get("messages", []), ensure_ascii=False)
         text = resp.choices[0].message.content or ""
+        if not text:
+            text = getattr(resp.choices[0].message, "reasoning_content", "") or ""
         usage = getattr(resp, "usage", None)
         _write_transcript(self._db, (
             time.time(), self._caller, str(kw.get("model", self._model)), prompt, text,
@@ -452,8 +454,12 @@ def main(argv: list[str] | None = None) -> int:
     ex.add_argument("--workers", type=int, default=8, help="成对评估并发数(真实端点串行不可用)")
     ex.add_argument("--out", default="dashboards/judge_exam.md")
     ex.add_argument("--limit", type=int, default=0, help="每轴截断(冒烟用;正式考试须 0)")
+    ex.add_argument("--axis", default=None, help="按轴过滤(逗号分隔;不填=全轴)")
     args = ap.parse_args(argv)
     pairs = [json.loads(ln) for ln in Path(args.pairs).read_text(encoding="utf-8").splitlines() if ln]
+    if args.axis:
+        axes = set(args.axis.split(","))
+        pairs = [p for p in pairs if p["axis"] in axes]
     if args.limit:
         by_axis: dict[str, list] = {}
         for p in pairs:
