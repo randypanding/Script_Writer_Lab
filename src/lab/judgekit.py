@@ -26,7 +26,7 @@ from typing import Any
 import yaml
 from openai import APIError
 
-from lab.models import ROOT, _db_path, _resolve_client, _write_transcript
+from lab.models import _CONCURRENCY_SEM, ROOT, _db_path, _resolve_client, _write_transcript
 
 CRITERIA_DIR = ROOT / "criteria"
 AXES = (
@@ -50,7 +50,8 @@ class _RecordingCompletions:
         self._inner, self._model, self._db, self._caller = inner, model, db_path, caller
 
     def create(self, **kw):
-        resp = self._inner.create(**kw)
+        with _CONCURRENCY_SEM:
+            resp = self._inner.create(**kw)
         prompt = json.dumps(kw.get("messages", []), ensure_ascii=False)
         text = resp.choices[0].message.content or ""
         if not text:
