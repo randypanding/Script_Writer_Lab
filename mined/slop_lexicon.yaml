@@ -1,18 +1,6 @@
 version: 1
-n_entries: 150
+n_entries: 148
 entries:
-- phrase: 小林
-  pmi: 9.5974
-  source: our_vs_drama
-  freq_our: 58
-  freq_corpus: 2
-  df_drama: 2
-- phrase: 门店吧台
-  pmi: 9.3497
-  source: our_vs_drama
-  freq_our: 10
-  freq_corpus: 0
-  df_drama: 0
 - phrase: 办公室工位
   pmi: 8.8389
   source: our_vs_drama

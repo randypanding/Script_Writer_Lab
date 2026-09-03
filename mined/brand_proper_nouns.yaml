@@ -1,0 +1,8 @@
+version: 1
+entries:
+- phrase: 小林
+  reason: 品牌角色专名(demo_tea 主角),非 AI 味模板词;PMI 假阳性(df_drama=2 但属角色名,非模型腔)
+- phrase: 门店吧台
+  reason: 品牌场景专名(实体门店布景),非 AI 味模板词;PMI 假阳性(df_drama=0 且 len=4 绕过 df 过滤)
+note: '品牌专名排除表(slop_lexicon 复用,T3 前置清洗)。这些词在生成物中因品牌设定高频出现,被 PMI 误判为模型腔;
+  列入后 build_lexicon 在聚合阶段剔除,--refresh 可复现。聚合产物,无 >50 字符语料原文。'
