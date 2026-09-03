@@ -45,3 +45,17 @@ def test_tracked_files_uses_nul_no_quotepath(tmp_path, monkeypatch):
     # 路径防线判定
     bad = [x for x in files if x.startswith(g.FORBIDDEN)]
     assert bad, "非 ASCII 路径的禁地文件必须被路径防线捕获"
+
+
+def test_bucket_index_paste_detected_and_clean_pass(tmp_path):
+    """v6 分桶磁盘索引:粘贴必中、干净文本零误报、索引可复用(回归 v5 union OOM)。"""
+    corpus_text = "茶山雾气缭绕采茶人清晨上山这是完全虚构的中文剧本文本。" * 30
+    src = tmp_path / "corpus_src.txt"
+    src.write_text(corpus_text, encoding="utf-8")
+    index_dir = g.build_bucket_index([src], tmp_path / "idx")
+    assert (index_dir / "MANIFEST").exists()
+    index = g.BucketIndex(index_dir)
+    paste = corpus_text[100:220]
+    assert g.window_hits_index("无害前缀" + paste + "无害后缀", index) > 0
+    clean = "完全无关的另一段中文文本内容用来验证误报率为零。" * 20
+    assert g.window_hits_index(clean, index) == 0

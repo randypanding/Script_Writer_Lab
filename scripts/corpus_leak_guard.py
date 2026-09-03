@@ -3,11 +3,13 @@
 
 三道防线:
 1. 路径防线:corpus/ 与 transcripts/ 下任何文件被 git 跟踪 → 失败。
-2. 内容防线(v1,真实语料规模):inbox 语料按文件建立 50 字符窗口的确定性 md5 键集
-   (步长 25,含 CJK 过滤,按文件粒度磁盘缓存);对每个待提交文本文件以步长 1 滚动
-   全量探查,键命中即判失败(64 位碰撞期望 ~1e-8,不回查原文——误报代价是人工复核,
-   漏报代价是语料泄漏)。检出保证:粘贴 ≥ 50+25-1 = 75 字符必中;50–74 字符按对齐
-   概率检出。(v0 的逐探针全串搜索在 GB 级语料上为 O(n²),不可用;L-15 再升级。)
+2. 内容防线(v2,真实语料规模·分桶磁盘索引):inbox 语料按 50 字符窗口生成确定性
+   md5 键(步长 25,含 CJK 过滤),按键高 16 位分桶落盘(桶内排序 uint64,整库按
+   语料清单指纹缓存);对每个待提交文本文件以步长 1 滚动探查,桶内二分命中即判失败
+   (64 位碰撞期望 ~1e-8,不回查原文——误报代价是人工复核,漏报代价是语料泄漏)。
+   检出保证:粘贴 ≥ 50+25-1 = 75 字符必中;50–74 字符按对齐概率检出。
+   (v1 的全量 set union 在 1609 部真实语料上需 GB 级内存,实测 OOM-kill/exit 137;
+   v0 逐探针全串搜索为 O(n²);均不可用。)
 3. sealed 防线(L-09):contract/ 存在 .seal.lock.json 时重算哈希比对,不一致 → 失败。
    (LAB_SEAL_KEY 设置时连 HMAC 一起校验;未封印视为通过,封印是显式动作。)
 
@@ -74,7 +76,8 @@ def _has_cjk(win: str) -> bool:
 
 
 CACHE_DIR = ROOT / "out" / "guard_cache"
-INDEX_VERSION = 5  # 索引算法变更时 +1,作废旧缓存(v5:GBK 最佳解码)
+INDEX_VERSION = 6  # 索引算法变更时 +1,作废旧缓存(v6:分桶磁盘索引,修全量 union 的 OOM)
+BUCKET_BITS = 16  # 按窗口键高 16 位分桶;桶内排序 uint64,查询走桶内二分
 
 
 def _win_key(win: str) -> int:
@@ -92,42 +95,102 @@ def _file_keys(text: str) -> set[int]:
     return keys
 
 
-def load_index() -> set[int] | None:
-    """语料侧窗口键集,按文件粒度磁盘缓存。
+def _corpus_manifest(files: list[Path]) -> str:
+    """语料清单指纹(path+size+mtime_ns),作整库索引的缓存键。"""
+    h = md5()
+    for p in files:
+        st = p.stat()
+        h.update(f"{p.relative_to(ROOT).as_posix()}|{st.st_size}|{st.st_mtime_ns}\n".encode())
+    return h.hexdigest()[:16]
+
+
+def build_bucket_index(files: list[Path], index_dir: Path) -> Path:
+    """语料窗口键 → 分桶排序 uint64 磁盘索引(bucket_XXXX.bin + MANIFEST)。
+
+    内存上界 = 单语料文件的窗口键集 + 单桶缓冲;不做全库 union
+    (v5 的 all_keys |= keys 在 1609 部真实语料上实测 OOM-kill/exit 137)。"""
+    import array
+    import shutil
+
+    if index_dir.exists():
+        shutil.rmtree(index_dir)
+    index_dir.mkdir(parents=True)
+    buckets: dict[int, array.array] = {}
+    for p in files:
+        for k in _file_keys(_read_best_decoded(p)):
+            buckets.setdefault(k >> (64 - BUCKET_BITS), array.array("Q")).append(k)
+    n_total = 0
+    for b, arr in buckets.items():
+        with (index_dir / f"bucket_{b:04x}.bin").open("wb") as f:
+            array.array("Q", sorted(set(arr))).tofile(f)
+        n_total += len(set(arr))
+    (index_dir / "MANIFEST").write_text(
+        f"v{INDEX_VERSION}\nfiles={len(files)}\nkeys={n_total}\n", encoding="utf-8")
+    return index_dir
+
+
+def load_index() -> Path | None:
+    """语料侧分桶索引目录,按语料清单指纹整库缓存。
 
     - 无语料 → None(调用方跳过内容防线);
-    - 每个语料文件一个缓存条目(指纹 = size+mtime_ns,算法版本入键);
-      下载工具持续新增文件时,未变文件照常秒级载入,只重建新文件;
+    - 清单指纹命中 → 秒级复用;语料增删改 → 全量重建(内存有界);
     - 哈希命中直接判失败:64 位键对百万级探针的碰撞期望 ~1e-8,
       误报的代价是一次人工复核,漏报的代价是语料泄漏,取舍明确。"""
-    import pickle
-
     files = _corpus_files()
     if not files:
         return None
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    all_keys: set[int] = set()
-    for p in files:
-        rel = p.relative_to(ROOT).as_posix()
-        st = p.stat()
-        fp = f"v{INDEX_VERSION}|{st.st_size}|{st.st_mtime_ns}|{rel}"
-        digest = md5(fp.encode("utf-8")).hexdigest()[:16]
-        cache = CACHE_DIR / f"{digest}.pkl"
-        keys = None
-        if cache.exists():
-            try:
-                with cache.open("rb") as f:
-                    keys = pickle.load(f)
-            except (OSError, pickle.UnpicklingError, EOFError):
-                keys = None  # 缓存损坏 → 重建该文件
-        if keys is None:
-            keys = _file_keys(_read_best_decoded(p))
-            tmp = cache.with_suffix(".tmp")
-            with tmp.open("wb") as f:
-                pickle.dump(keys, f, protocol=pickle.HIGHEST_PROTOCOL)
-            tmp.replace(cache)
-        all_keys |= keys
-    return all_keys
+    index_dir = CACHE_DIR / f"index_v{INDEX_VERSION}_{_corpus_manifest(files)}"
+    if (index_dir / "MANIFEST").exists():
+        return index_dir
+    return build_bucket_index(files, index_dir)
+
+
+class BucketIndex:
+    """分桶索引查询:桶文件按需加载(LRU),桶内 C 级二分。"""
+
+    def __init__(self, index_dir: Path, max_cached: int = 512) -> None:
+        import array
+
+        self._dir = index_dir
+        self._cache: dict[int, array.array] = {}
+        self._order: list[int] = []
+        self._max = max_cached
+        self._array = array
+
+    def _bucket(self, b: int):
+        arr = self._cache.get(b)
+        if arr is not None:
+            return arr
+        arr = self._array.array("Q")
+        f = self._dir / f"bucket_{b:04x}.bin"
+        if f.exists():
+            with f.open("rb") as fp:
+                arr.fromfile(fp, f.stat().st_size // 8)
+        if len(self._order) >= self._max:
+            self._cache.pop(self._order.pop(0), None)
+        self._cache[b] = arr
+        self._order.append(b)
+        return arr
+
+    def __contains__(self, key: int) -> bool:
+        import bisect
+
+        arr = self._bucket(key >> (64 - BUCKET_BITS))
+        i = bisect.bisect_left(arr, key)
+        return i < len(arr) and arr[i] == key
+
+
+def window_hits_index(text: str, index: BucketIndex) -> int:
+    """文件侧探查(分桶索引版):步长 1 滚动,桶内二分命中即计。"""
+    hits = 0
+    for pos in range(max(len(text) - PROBE_LEN, 0) + 1):
+        win = text[pos : pos + PROBE_LEN]
+        if not _has_cjk(win):
+            continue
+        if _win_key(win) in index:
+            hits += 1
+    return hits
 
 
 def window_hits(text: str, keys: set[int]) -> int:
@@ -160,12 +223,14 @@ def main() -> int:
         print("sealed 防线失败:contract/ 与 .seal.lock.json 不一致")
         return 1
 
-    keys = load_index()
-    if keys is None:
+    index_dir = load_index()
+    if index_dir is None:
         # 无语料 = 无泄漏对象,路径防线已足够;CI 视为通过但打印警告
         print("警告:无语料,内容防线跳过", file=sys.stderr)
         return 0
 
+    index = BucketIndex(index_dir)
+    n_buckets = len(list(index_dir.glob("bucket_*.bin")))
     for f in files:
         p = ROOT / f
         if p.suffix not in TEXT_SUFFIXES or not p.is_file() or f.startswith("tests/fixtures/"):
@@ -173,10 +238,10 @@ def main() -> int:
         text = p.read_text(encoding="utf-8", errors="ignore").replace("\r\n", "\n")
         if len(text) < PROBE_LEN:
             continue  # 容不下一个 50 字符窗口;威胁定义即 ≥50 字符粘贴
-        if window_hits(text, keys):
+        if window_hits_index(text, index):
             print(f"内容防线失败:{f} 含与语料一致的 ≥{PROBE_LEN} 字符片段")
             return 1
-    print(f"泄漏守卫通过({len(files)} 个跟踪文件;索引 {len(keys)} 键)")
+    print(f"泄漏守卫通过({len(files)} 个跟踪文件;索引 {n_buckets} 桶)")
     return 0
 
 
