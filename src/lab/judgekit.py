@@ -9,9 +9,11 @@ docs/VERIFIER_IMPLEMENTATION.md)。本模块只做:封装/路由/transcript/考�
   降级路径有单测;
 - 所有调用经 lab.models 的客户端工厂 + RecordingClient 写 transcript。
 """
+
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import re
 import sys
@@ -24,35 +26,56 @@ from typing import Any
 import yaml
 from openai import APIError
 
-from lab.models import ROOT, _db_path, _resolve_client, _write_transcript
+from lab.models import _CONCURRENCY_SEM, ROOT, _db_path, _resolve_client, _write_transcript
 
 CRITERIA_DIR = ROOT / "criteria"
-AXES = ("naturalness", "hook_strength", "placement_integration", "transportation",
-        "producibility", "prose_craft", "reading_attraction",
-        "l0_structure", "l0_fact", "l0_brand", "l0_dialogue")
+AXES = (
+    "naturalness",
+    "hook_strength",
+    "placement_integration",
+    "transportation",
+    "producibility",
+    "prose_craft",
+    "reading_attraction",
+    "l0_structure",
+    "l0_fact",
+    "l0_brand",
+    "l0_dialogue",
+)
 BLOCK_OPS = ("D07_pov_break", "D08_inject_contradiction", "D09_brand_cut", "D14_setup_cut")
 
 
 class _RecordingCompletions:
-    def __init__(self, inner: Any, model: str, db_path: Path | None, caller: str):
+    def __init__(self, inner: Any, model: str, db_path: Path, caller: str):
         self._inner, self._model, self._db, self._caller = inner, model, db_path, caller
 
     def create(self, **kw):
-        resp = self._inner.create(**kw)
+        with _CONCURRENCY_SEM:
+            resp = self._inner.create(**kw)
         prompt = json.dumps(kw.get("messages", []), ensure_ascii=False)
         text = resp.choices[0].message.content or ""
         if not text:
             text = getattr(resp.choices[0].message, "reasoning_content", "") or ""
         usage = getattr(resp, "usage", None)
-        _write_transcript(self._db, (
-            time.time(), self._caller, str(kw.get("model", self._model)), prompt, text,
-            getattr(usage, "prompt_tokens", 0) or 0,
-            getattr(usage, "completion_tokens", 0) or 0, 0.0, ""))
+        _write_transcript(
+            self._db,
+            (
+                time.time(),
+                self._caller,
+                str(kw.get("model", self._model)),
+                prompt,
+                text,
+                getattr(usage, "prompt_tokens", 0) or 0,
+                getattr(usage, "completion_tokens", 0) or 0,
+                0.0,
+                "",
+            ),
+        )
         return resp
 
 
 class _RecordingChat:
-    def __init__(self, inner: Any, model: str, db_path: Path | None, caller: str):
+    def __init__(self, inner: Any, model: str, db_path: Path, caller: str):
         self.completions = _RecordingCompletions(inner.completions, model, db_path, caller)
 
 
@@ -90,12 +113,17 @@ def load_criteria(axis: str) -> dict[str, str]:
 
 
 _AXIS_HINTS = {
-    "naturalness": "自然度:对白像真人说话吗", "hook_strength": "钩子强度:开头抓人/结尾留钩吗",
-    "placement_integration": "植入融合:商业信息融进剧情吗", "transportation": "代入感:信息给送顺畅吗",
-    "producibility": "可拍性:制作元素在预算内吗", "prose_craft": "文笔:句法节奏与用词质量",
+    "naturalness": "自然度:对白像真人说话吗",
+    "hook_strength": "钩子强度:开头抓人/结尾留钩吗",
+    "placement_integration": "植入融合:商业信息融进剧情吗",
+    "transportation": "代入感:信息给送顺畅吗",
+    "producibility": "可拍性:制作元素在预算内吗",
+    "prose_craft": "文笔:句法节奏与用词质量",
     "reading_attraction": "阅读吸引力:读完想不想翻下一页,有没有可转述的记忆点",
-    "l0_structure": "结构合规:视角/伏笔承接/beat 顺序", "l0_fact": "事实一致性:无硬矛盾",
-    "l0_brand": "品牌合规:必覆盖卖点齐全", "l0_dialogue": "对白占比:对白驱动叙事",
+    "l0_structure": "结构合规:视角/伏笔承接/beat 顺序",
+    "l0_fact": "事实一致性:无硬矛盾",
+    "l0_brand": "品牌合规:必覆盖卖点齐全",
+    "l0_dialogue": "对白占比:对白驱动叙事",
 }
 
 
@@ -105,8 +133,10 @@ def _axis_hint(axis: str) -> str:
 
 def axis_problem(axis: str) -> str:
     """compare 的 problem 槽:轴定义 + 判分对象说明(不含任何答案信息)。"""
-    return (f"你是短剧质量判官。比较两段短剧文本,轴:「{axis}」({_axis_hint(axis)})。"
-            "按信号级子问题分别评估两段,再给 1-20 刻度的细粒度分。")
+    return (
+        f"你是短剧质量判官。比较两段短剧文本,轴:「{axis}」({_axis_hint(axis)})。"
+        "按信号级子问题分别评估两段,再给 1-20 刻度的细粒度分。"
+    )
 
 
 @dataclass
@@ -115,7 +145,7 @@ class Verdict:
     score_a: float
     score_b: float
     k: int
-    engine: str          # llm_verifier.compare | k_sample_vote
+    engine: str  # llm_verifier.compare | k_sample_vote
     n_api_calls: int
     fallback_reason: str = ""
 
@@ -134,24 +164,28 @@ def score_pair(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any]) -
 
         if _models._load_lab_toml()["models"][slot].get("backend") == "cnb":
             # CNB 沙箱集群没有 OpenAI 端点,llm_verifier 无从接入——直连投票降级路径
-            return _k_sample_vote(a_text, b_text, axis, judge_cfg,
-                                  reason="backend=cnb: 免费沙箱集群,无 logprobs 端点")
+            return _k_sample_vote(
+                a_text, b_text, axis, judge_cfg, reason="backend=cnb: 免费沙箱集群,无 logprobs 端点"
+            )
         model, client = make_client(slot, judge_cfg.get("db_path"))
     criteria = judge_cfg.get("criteria") or load_criteria(axis)
     problem = judge_cfg.get("problem") or axis_problem(axis)
     try:
-        ra1, rb1 = lv.compare(problem, a_text, b_text, criteria=criteria,
-                              n_evaluations=k, model=model, client=client)
-        ra2, rb2 = lv.compare(problem, b_text, a_text, criteria=criteria,
-                              n_evaluations=k, model=model, client=client)
+        ra1, rb1 = lv.compare(
+            problem, a_text, b_text, criteria=criteria, n_evaluations=k, model=model, client=client
+        )
+        ra2, rb2 = lv.compare(
+            problem, b_text, a_text, criteria=criteria, n_evaluations=k, model=model, client=client
+        )
         if (ra1, rb1) == (0.5, 0.5) and (ra2, rb2) == (0.5, 0.5):
             # OpenAI 兼容端点不支持 vLLM prefill 也不吐可解析标签时,内核静默返回
             # 全 0.5(dashscope 实测风险,VERIFIER_IMPLEMENTATION §后端要求)→ 视同失败
             raise RuntimeError("degenerate scores: endpoint returns unparseable 0.5 everywhere")
         score_a = (ra1 + rb2) / 2
         score_b = (rb1 + ra2) / 2
-        return Verdict(axis, score_a, score_b, k, "llm_verifier.compare",
-                       n_api_calls=2 * k * max(1, len(criteria)))
+        return Verdict(
+            axis, score_a, score_b, k, "llm_verifier.compare", n_api_calls=2 * k * max(1, len(criteria))
+        )
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, APIError) as exc:
         # 端点不支持 logprobs / 客户端报错 → 降级路径(contract/judges.yaml::scoring_fallback)
         # 注意:真实端点抛的是 openai.APIStatusError 子类(BadRequestError 等),
@@ -159,8 +193,7 @@ def score_pair(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any]) -
         return _k_sample_vote(a_text, b_text, axis, judge_cfg, reason=str(exc)[:200])
 
 
-def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any],
-                   reason: str) -> Verdict:
+def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any], reason: str) -> Verdict:
     """降级打分:k 次多数投票(双向),无 logprobs 也能出 [0,1] 相对分。
 
     2k 次投票相互独立,并行发出(推理模型单次 ~18s,串行在真实端点上不可用——探针实证)。
@@ -171,26 +204,39 @@ def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any
     db = judge_cfg.get("db_path")
 
     def _one_vote(first: str, second: str, first_is_a: bool) -> bool:
-        prompt = (f"比较两段短剧文本在轴「{axis}」上的质量。更好的是第一段(A)还是第二段(B)?"
-                  f"只回复一个大写字母 A 或 B,不要任何其他内容。"
-                  f"\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}")
-        ans = route(judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote",
-                    db_path=db, temperature=1.0)
+        prompt = (
+            f"比较两段短剧文本在轴「{axis}」上的质量。更好的是第一段(A)还是第二段(B)?"
+            f"只回复一个大写字母 A 或 B,不要任何其他内容。"
+            f"\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}"
+        )
+        ans = route(judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote", db_path=db, temperature=1.0)
         from lab.swarm import parse_vote  # 剥 @提及 前缀后取首个 A/B(NPC 回复有前缀)
 
         return parse_vote(ans) == ("A" if first_is_a else "B")
 
     tasks = [(a_text, b_text, True), (b_text, a_text, False)] * k
-    workers = min(len(tasks), int(judge_cfg.get("workers", 10)))
+    workers = min(len(tasks), int(judge_cfg.get("workers", 3)))
     with ThreadPoolExecutor(max_workers=workers) as ex:
         votes_a = sum(ex.map(lambda t: _one_vote(*t), tasks))
     total = 2 * k
-    return Verdict(axis, votes_a / total, 1 - votes_a / total, k, "k_sample_vote",
-                   n_api_calls=total, fallback_reason=reason)
+    return Verdict(
+        axis,
+        votes_a / total,
+        1 - votes_a / total,
+        k,
+        "k_sample_vote",
+        n_api_calls=total,
+        fallback_reason=reason,
+    )
 
 
-def select_best(problem: str, candidates: list[str], axis: str, judge_cfg: dict[str, Any],
-                cache_dir: str | Path | None = None) -> Any:
+def select_best(
+    problem: str,
+    candidates: list[str],
+    axis: str,
+    judge_cfg: dict[str, Any],
+    cache_dir: str | Path | None = None,
+) -> Any:
     """best-of-n / 语料盲测排名:llm_verifier.select(PPT,O(Nk) 成对 + Bradley-Terry)。"""
     import llm_verifier as lv
 
@@ -201,22 +247,30 @@ def select_best(problem: str, candidates: list[str], axis: str, judge_cfg: dict[
     cache = str(Path(cache_dir)) if cache_dir else None
     if cache:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
-    return lv.select(problem, candidates, criteria=load_criteria(axis),
-                     n_evaluations=int(judge_cfg.get("k", 4)),
-                     pivots=int(judge_cfg.get("pivots", 2)),
-                     seed=int(judge_cfg.get("seed", 0)),
-                     model=model, client=client, cache=cache)
+    return lv.select(
+        problem,
+        candidates,
+        criteria=load_criteria(axis),
+        n_evaluations=int(judge_cfg.get("k", 4)),
+        pivots=int(judge_cfg.get("pivots", 2)),
+        seed=int(judge_cfg.get("seed", 0)),
+        model=model,
+        client=client,
+        cache=cache,
+    )
 
 
 # ---- L-08 · 判官考试(contract/judges.yaml §exam) ----
+
 
 def _gate_cfg() -> dict[str, Any]:
     path = ROOT / "contract" / "judges.yaml"
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
-                    workers: int = 16, pack_size: int = 5) -> dict[str, Any]:
+def run_exam_packed(
+    judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]], workers: int = 16, pack_size: int = 5
+) -> dict[str, Any]:
     """CNB 打包考试(backend=cnb 槽位):投票项跨对打包,一条指令带 pack_size 组对比。
 
     与 run_exam 的差异:不经 llm_verifier;不做传递性检查(标 null,门限允许);
@@ -237,20 +291,27 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
     from lab.degrade import verify_pair
 
     n_all = len(exam_pairs)
-    exam_pairs = [p for p in exam_pairs
-                  if verify_pair(p["construction"].get("op_id"), p["a_text"], p["b_text"])]
+    exam_pairs = [
+        p for p in exam_pairs if verify_pair(p["construction"].get("op_id"), p["a_text"], p["b_text"])
+    ]
     unverified = n_all - len(exam_pairs)
     by_axis: dict[str, list[dict[str, Any]]] = {}
     for p in exam_pairs:
         by_axis.setdefault(p["axis"], []).append(p)
 
-    report: dict[str, Any] = {"axes": {}, "gates": gates, "judge": judge_cfg.get("model_slot"),
-                              "engine": "k_sample_vote_packed", "transitivity_skipped": True,
-                              "corpus_vs_gen_excluded": excluded,
-                              "unverified_excluded": unverified}
+    report: dict[str, Any] = {
+        "axes": {},
+        "gates": gates,
+        "judge": judge_cfg.get("model_slot"),
+        "engine": "k_sample_vote_packed",
+        "transitivity_skipped": True,
+        "corpus_vs_gen_excluded": excluded,
+        "unverified_excluded": unverified,
+    }
     for axis, pairs in sorted(by_axis.items()):
-        print(f"[exam] 开始轴 {axis}: {len(pairs)} 对 ×2 方向 ×k{k} @ {time.strftime('%H:%M:%S')}",
-              flush=True)  # 进度行 → 监督器日志(打包路径不写 transcripts,心跳盲区实证)
+        print(
+            f"[exam] 开始轴 {axis}: {len(pairs)} 对 ×2 方向 ×k{k} @ {time.strftime('%H:%M:%S')}", flush=True
+        )  # 进度行 → 监督器日志(打包路径不写 transcripts,心跳盲区实证)
         # 每对 × 两方向 × k 次 = 独立投票项;方向 1 即位置交换
         items: list[tuple[int, int, str, str]] = []
         for i, p in enumerate(pairs):
@@ -258,11 +319,12 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
                 a, b = (p["a_text"], p["b_text"]) if d == 0 else (p["b_text"], p["a_text"])
                 for _ in range(k):
                     items.append((i, d, a, b))
-        chunks = [items[i:i + pack_size] for i in range(0, len(items), pack_size)]
+        chunks = [items[i : i + pack_size] for i in range(0, len(items), pack_size)]
         signals = list(load_criteria(axis).keys())  # 信号级分解:弱后端灵敏度来源
         instructions = [
-            swarm.pack_vote_instruction(axis, _axis_hint(axis), [(a, b) for _, _, a, b in chunk],
-                                        signals=signals)
+            swarm.pack_vote_instruction(
+                axis, _axis_hint(axis), [(a, b) for _, _, a, b in chunk], signals=signals
+            )
             for chunk in chunks
         ]
         replies = swarm.run_batch(instructions, workers=workers, timeout_s=300)
@@ -316,15 +378,22 @@ def run_exam_packed(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
                 and position_bias <= gates["position_bias"]
             ),
         }
-        print(f"[exam] 完成轴 {axis}: 灵敏度 {sensitivity:.2f} 位置偏差 {position_bias:.2f} "
-              f"弃票 {n_abstain} @ {time.strftime('%H:%M:%S')}", flush=True)
+        print(
+            f"[exam] 完成轴 {axis}: 灵敏度 {sensitivity:.2f} 位置偏差 {position_bias:.2f} "
+            f"弃票 {n_abstain} @ {time.strftime('%H:%M:%S')}",
+            flush=True,
+        )
     report["pass"] = bool(report["axes"]) and all(a["pass"] for a in report["axes"].values())
     return report
 
 
-def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
-             other_judge_cfg: dict[str, Any] | None = None,
-             workers: int = 8) -> dict[str, Any]:
+def run_exam(
+    judge_cfg: dict[str, Any],
+    exam_pairs: list[dict[str, Any]],
+    other_judge_cfg: dict[str, Any] | None = None,
+    workers: int = 8,
+    checkpoint_path: str | None = None,
+) -> dict[str, Any]:
     """对照 contract/judges.yaml::exam 五门限出 pass/fail。
 
     exam_pairs 来自 lab.pairs(split=exam,label 由构造保证)。
@@ -337,14 +406,60 @@ def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
     for p in exam_pairs:
         by_axis.setdefault(p["axis"], []).append(p)
 
+    done: dict[str, tuple[Any, Any]] = {}
+    if checkpoint_path:
+        cp = Path(checkpoint_path)
+        if cp.exists():
+            for line in cp.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                pid = row["pair_id"]
+                v1 = row["v1"]
+                v2 = row["v2"]
+                v1["axis"] = row.get("axis", v1.get("axis", ""))
+                v2["axis"] = row.get("axis", v2.get("axis", ""))
+                done[pid] = (Verdict(**v1), Verdict(**v2))
+
     def _eval_pair(axis: str, p: dict[str, Any]):
         v1 = score_pair(p["a_text"], p["b_text"], axis, judge_cfg)
         v2 = score_pair(p["b_text"], p["a_text"], axis, judge_cfg)  # 位置交换
         return axis, p, v1, v2
 
     tasks = [(axis, p) for axis, pairs in by_axis.items() for p in pairs]
+    pending = [t for t in tasks if t[1]["pair_id"] not in done]
+
+    def _eval_and_write(axis: str, p: dict[str, Any]):
+        result = _eval_pair(axis, p)
+        if checkpoint_path:
+            cp = Path(checkpoint_path)
+            with cp.open("a", encoding="utf-8") as f:
+                f.write(
+                    json.dumps(
+                        {
+                            "pair_id": p["pair_id"],
+                            "axis": axis,
+                            "v1": dataclasses.asdict(result[2]),
+                            "v2": dataclasses.asdict(result[3]),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+                f.flush()
+        return result
+
     with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
-        evaluated = list(ex.map(lambda t: _eval_pair(*t), tasks))
+        new_results = list(ex.map(lambda t: _eval_and_write(*t), pending))
+
+    evaluated = []
+    for pair_id, (v1, v2) in done.items():
+        for axis, pairs in by_axis.items():
+            for p in pairs:
+                if p["pair_id"] == pair_id:
+                    evaluated.append((axis, p, v1, v2))
+                    break
+    evaluated.extend(new_results)
 
     report: dict[str, Any] = {"axes": {}, "gates": gates, "judge": judge_cfg.get("model_slot")}
     for axis, pairs in sorted(by_axis.items()):
@@ -357,11 +472,15 @@ def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
             correct += ok
             if p["construction"].get("op_id") in BLOCK_OPS:
                 block_correct += ok
-            flips += (v2.score_a > v2.score_b)  # 交换后退化版胜 = 位置偏差事件
+            flips += v2.score_a > v2.score_b  # 交换后退化版胜 = 位置偏差事件
         sensitivity = correct / n if n else 0.0
         block_sensitivity = (block_correct / len(block_pairs)) if block_pairs else None
         position_bias = flips / n if n else 1.0
-        transitivity = _transitivity(pairs, axis, judge_cfg)
+        score_cache: dict[tuple[str, str, str], Any] = {}
+        for _, p, v1, v2 in (r for r in evaluated if r[0] == axis):
+            score_cache[(p["a_text"], p["b_text"], axis)] = v1
+            score_cache[(p["b_text"], p["a_text"], axis)] = v2
+        transitivity = _transitivity(pairs, axis, judge_cfg, cache=score_cache)
         axis_report = {
             "n_pairs": n,
             "sensitivity": round(sensitivity, 4),
@@ -379,23 +498,50 @@ def run_exam(judge_cfg: dict[str, Any], exam_pairs: list[dict[str, Any]],
         report["axes"][axis] = axis_report
 
     if other_judge_cfg is not None:
+
         def _cross(axis: str, p: dict[str, Any]) -> bool:
             v1 = score_pair(p["a_text"], p["b_text"], axis, judge_cfg)
             v2 = score_pair(p["a_text"], p["b_text"], axis, other_judge_cfg)
             return (v1.score_a > v1.score_b) == (v2.score_a > v2.score_b)
 
         with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
-            outs = list(ex.map(lambda t: _cross(*t), tasks))
+            outs = list(ex.map(lambda t: _cross(*t), pending))
         report["cross_family_agreement"] = round(sum(outs) / len(outs), 4) if outs else None
-        report["pass"] = (all(a["pass"] for a in report["axes"].values())
-                          and report["cross_family_agreement"] is not None
-                          and report["cross_family_agreement"] >= gates["cross_family_agreement"])
+        report["pass"] = (
+            all(a["pass"] for a in report["axes"].values())
+            and report["cross_family_agreement"] is not None
+            and report["cross_family_agreement"] >= gates["cross_family_agreement"]
+        )
     else:
         report["pass"] = bool(report["axes"]) and all(a["pass"] for a in report["axes"].values())
     return report
 
 
-def _transitivity(pairs: list[dict[str, Any]], axis: str, judge_cfg: dict[str, Any]) -> float | None:
+def _score_pair_cached(
+    a_text: str,
+    b_text: str,
+    axis: str,
+    judge_cfg: dict[str, Any],
+    cache: dict[tuple[str, str, str], Any] | None = None,
+) -> Any:
+    """带缓存的一侧 score_pair:cache 命中直接返回,未命中写回。"""
+    key = (a_text, b_text, axis)
+    if cache is not None and key in cache:
+        return cache[key]
+    from lab.judgekit import score_pair as _sp
+
+    result = _sp(a_text, b_text, axis, judge_cfg)
+    if cache is not None:
+        cache[key] = result
+    return result
+
+
+def _transitivity(
+    pairs: list[dict[str, Any]],
+    axis: str,
+    judge_cfg: dict[str, Any],
+    cache: dict[tuple[str, str, str], Any] | None = None,
+) -> float | None:
     """同源同算子两档强度的三元组:orig>mid 与 mid>strong 都成立时 orig>strong 必须成立。"""
     from collections import defaultdict
 
@@ -412,11 +558,11 @@ def _transitivity(pairs: list[dict[str, Any]], axis: str, judge_cfg: dict[str, A
             continue
         mid_p, strong_p = by_sev[sevs[0]], by_sev[sevs[-1]]
         # 链:orig > mid(弱退化)且 mid > strong(强退化)⇒ 检查 orig > strong
-        vm = score_pair(mid_p["a_text"], mid_p["b_text"], axis, judge_cfg)
-        vms = score_pair(mid_p["b_text"], strong_p["b_text"], axis, judge_cfg)
+        vm = _score_pair_cached(mid_p["a_text"], mid_p["b_text"], axis, judge_cfg, cache)
+        vms = _score_pair_cached(mid_p["b_text"], strong_p["b_text"], axis, judge_cfg, cache)
         if not (vm.score_a > vm.score_b and vms.score_a > vms.score_b):
             continue  # 前提不成立,不计入
-        vo = score_pair(strong_p["a_text"], strong_p["b_text"], axis, judge_cfg)
+        vo = _score_pair_cached(strong_p["a_text"], strong_p["b_text"], axis, judge_cfg, cache)
         checked += 1
         consistent += vo.score_a > vo.score_b
     return round(consistent / checked, 4) if checked else None
@@ -424,10 +570,12 @@ def _transitivity(pairs: list[dict[str, Any]], axis: str, judge_cfg: dict[str, A
 
 def render_exam_md(report: dict[str, Any], out_path: str | Path) -> None:
     lines = [
-        "# 判官考试报告(judge_exam)", "",
+        "# 判官考试报告(judge_exam)",
+        "",
         f"- 判官槽位:{report.get('judge')}",
         f"- **结论:{'PASS ✅(判官闸门 ON)' if report.get('pass') else 'FAIL ❌(闸门保持 OFF,该轴降级仅报告)'}**",
-        "", "| 轴 | n | 灵敏度 | block 灵敏度 | 位置偏差 | 传递性 | pass |",
+        "",
+        "| 轴 | n | 灵敏度 | block 灵敏度 | 位置偏差 | 传递性 | pass |",
         "|---|---|---|---|---|---|---|",
     ]
     for axis, a in sorted(report.get("axes", {}).items()):
@@ -435,7 +583,8 @@ def render_exam_md(report: dict[str, Any], out_path: str | Path) -> None:
             f"| {axis} | {a['n_pairs']} | {a['sensitivity']} | "
             f"{a['block_sensitivity'] if a['block_sensitivity'] is not None else '—'} | "
             f"{a['position_bias']} | {a['transitivity'] if a['transitivity'] is not None else '—'} | "
-            f"{'✅' if a['pass'] else '❌'} |")
+            f"{'✅' if a['pass'] else '❌'} |"
+        )
     if report.get("cross_family_agreement") is not None:
         lines += ["", f"- 跨族一致率:{report['cross_family_agreement']}"]
     lines += ["", "> 门限:contract/judges.yaml §exam;全部通过才准出分(ADR-0001 L-D4)。"]
@@ -455,6 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     ex.add_argument("--out", default="dashboards/judge_exam.md")
     ex.add_argument("--limit", type=int, default=0, help="每轴截断(冒烟用;正式考试须 0)")
     ex.add_argument("--axis", default=None, help="按轴过滤(逗号分隔;不填=全轴)")
+    ex.add_argument("--checkpoint", default="out/exam_checkpoint.jsonl", help="断点续跑 checkpoint 路径")
     args = ap.parse_args(argv)
     pairs = [json.loads(ln) for ln in Path(args.pairs).read_text(encoding="utf-8").splitlines() if ln]
     if args.axis:
@@ -466,8 +616,10 @@ def main(argv: list[str] | None = None) -> int:
             by_axis.setdefault(p["axis"], []).append(p)
         pairs = [p for ax, ps in by_axis.items() for p in ps[: args.limit]]
     cfg = {"model_slot": args.slot, "k": args.k, "workers": args.workers}
-    other = ({"model_slot": args.sealed_slot, "k": args.k, "workers": args.workers}
-             if args.sealed_slot else None)
+    other = (
+        {"model_slot": args.sealed_slot, "k": args.k, "workers": args.workers} if args.sealed_slot else None
+    )
+    checkpoint_path = args.checkpoint if args.checkpoint else None
     from lab import models as _models
 
     backend = _models._load_lab_toml()["models"][args.slot].get("backend")
@@ -477,7 +629,7 @@ def main(argv: list[str] | None = None) -> int:
             print("警告:打包模式暂不支持 sealed 跨族,已忽略 --sealed-slot", file=sys.stderr)
         report = run_exam_packed(cfg, pairs, workers=args.workers)
     else:
-        report = run_exam(cfg, pairs, other, workers=args.workers)
+        report = run_exam(cfg, pairs, other, workers=args.workers, checkpoint_path=checkpoint_path)
     render_exam_md(report, args.out)
     print(json.dumps(report, ensure_ascii=False)[:2000])
     # 报告产出即成功(0);"门限未过"是合法终态,裁决在报告的 pass 字段里。

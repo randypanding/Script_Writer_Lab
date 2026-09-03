@@ -1,0 +1,9 @@
+{
+  "include": ["src/lab/models.py", "src/lab/judgekit.py"],
+  "exclude": ["tests/**", "**/__pycache__/**"],
+  "reportMissingImports": true,
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "venvPath": ".",
+  "venv": ".venv"
+}
