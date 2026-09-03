@@ -121,8 +121,8 @@ def build_bucket_index(files: list[Path], index_dir: Path) -> Path:
             buckets.setdefault(k >> (64 - BUCKET_BITS), array.array("Q")).append(k)
     n_total = 0
     for b, arr in buckets.items():
-        array.array("Q", sorted(set(arr))).tofile(
-            open(index_dir / f"bucket_{b:04x}.bin", "wb"))
+        with (index_dir / f"bucket_{b:04x}.bin").open("wb") as f:
+            array.array("Q", sorted(set(arr))).tofile(f)
         n_total += len(set(arr))
     (index_dir / "MANIFEST").write_text(
         f"v{INDEX_VERSION}\nfiles={len(files)}\nkeys={n_total}\n", encoding="utf-8")
