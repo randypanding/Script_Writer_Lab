@@ -9,11 +9,11 @@ out = "out"
 [models]
 # 槽位 -> 模型。改本文件不需要 ADR;改 contract/judges.yaml 的家族约束需要。
 # 2026-09-01 PM 进场实测 v2:longcat key 聊天额度 402 枯竭,弃用;
-# GEN/DEV=bigmodel glm-5.3-flash(coding paas 端点),SEALED=stepfun step-3.7-flash(跨家族,09-19 到期)。
+# GEN/DEV=bigmodel glm-5.3-flash(coding paas 端点),DEV=stepfun step-router-v1,SEALED=stepfun step-3.7-flash(跨家族,09-19 到期)。
 # 历史模型名备查:generation=qwen3-coder-plus generation_strong=qwen3.6-flash judge_dev=deepseek-r1 judge_sealed=glm-5;longcat=LongCat-2.0
 generation = { model = "glm-5.3-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
 generation_strong = { model = "glm-5.3-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
-judge_dev = { model = "glm-5.3-flash", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
+judge_dev = { model = "step-router-v1", api_key_env = "JUDGE_DEV_API_KEY", api_base_env = "JUDGE_DEV_API_BASE" }
 judge_sealed = { model = "step-3.7-flash", api_key_env = "JUDGE_SEALED_API_KEY", api_base_env = "JUDGE_SEALED_API_BASE" }
 synthesis = { model = "glm-5.3-flash", api_key_env = "GEN_API_KEY", api_base_env = "GEN_API_BASE" }
 # CNB 免费沙箱集群(随机后端模型,零成本):dev 判官投票/合成改写用;sealed 永不用它
