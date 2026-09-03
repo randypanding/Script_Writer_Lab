@@ -260,3 +260,14 @@ decision: rejected
 sealed_score: null
 notes: "非实验轮。遗留:判官考试全量卡 bigmodel 1302(等限速窗口或独立 key);Q2 p6 解绑 A/B 依赖判官可用;R3 原机 card/pairs 仍缺;pairs 上 GPU 机前需 owner 批准(宪法§3 corpus 内容移出本机须问人类);e2e r5 结果待出。"
 ```
+```yaml
+round: "PM-2026-09-03b"
+date: "2026-09-03"
+hypothesis: "PM 协调轮(非优化轮):owner 授权 PM 直接合并——PR 全量清台+e2e r5/r6+判官考试换血启动"
+surface: n/a
+change: "①SW 合并 #17-#21/#23-#27 共 10 个 PR,另开 #28 ruff format+pyright 卫生轮(子代理纪律补丁:交付前必跑 ruff format --check/ruff check/pyright);②Lab 合并 #7/#8/#3/#4/#9/#10 共 6 个(#8 后本地 make ci 不再 OOM,147 passed+守卫过);③e2e r5 远端:p0→p6 全过(截断根治生效),after_p6 被 NOV-002 拦(fuzz.ratio 长度偏差),#27 段落长度机械预检修复后 r6 远端点火;④判官:judge_dev→step-router-v1(Lab#9),stepfun 兼容修复(Lab#10:reasoning_content 回退/WAL/workers 钳制),全量考试远端 workers=8 启动(5101 对/11 轴,ETA ~8h);⑤out/pairs 备份 COS(207MB 字节级核对)+rsync 到 GPU 机(owner 批准),本地腾 1.8GB"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "非实验轮。风险记录:judge_dev/sealed 同落 stepfun 家族,跨家族独立性稀释,sealed 后续应换家族;judge-cal 无数据(SW cases.db 空,需 Lab 侧生成标定数据);R3 原机 card/pairs 仍缺;治愈锚显性仅 1 部。下一步:判官考试出分→Q1 A/B 能力→Q2 p6 解绑;e2e r6 结果→若全绿则 glm 管线达成首个完整里程碑。"
+```
