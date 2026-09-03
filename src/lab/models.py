@@ -47,6 +47,8 @@ CREATE TABLE IF NOT EXISTS transcripts (
 def _write_transcript(db: Path, row: tuple) -> None:
     con = sqlite3.connect(db)
     try:
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("PRAGMA busy_timeout=5000")
         con.execute(_SCHEMA)
         con.execute("INSERT INTO transcripts VALUES (?,?,?,?,?,?,?,?,?)", row)
         con.commit()
@@ -101,11 +103,13 @@ def route(
     messages = ([{"role": "system", "content": system}] if system else []) + [
         {"role": "user", "content": prompt}
     ]
-    kwargs: dict[str, Any] = {"model": model, "messages": messages}
+    kwargs: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": 4096}
     if temperature is not None:
         kwargs["temperature"] = temperature
     resp = cl.chat.completions.create(**kwargs)
     text = resp.choices[0].message.content or ""
+    if not text:
+        text = getattr(resp.choices[0].message, "reasoning_content", "") or ""
     usage = getattr(resp, "usage", None)
     t_in = getattr(usage, "prompt_tokens", 0) or 0
     t_out = getattr(usage, "completion_tokens", 0) or 0

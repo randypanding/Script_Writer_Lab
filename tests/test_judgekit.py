@@ -317,3 +317,50 @@ def test_transitivity_chain_semantics():
     assert ("orig", "strong") in distinct and ("strong", "orig") in distinct
     assert distinct == {("orig", "mid"), ("mid", "orig"), ("mid", "strong"),
                         ("strong", "mid"), ("orig", "strong"), ("strong", "orig")}
+
+
+def test_recording_client_reasoning_content_fallback(tmp_path):
+    """RecordingClient 在 content 为空时回退 reasoning_content。"""
+    class EmptyContentMockClient:
+        model_name = "mock-judge"
+        def __init__(self):
+            self.calls = []
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        def _create(self, **kw):
+            msg = SimpleNamespace(content=None)
+            msg.reasoning_content = "judge推理回退"
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=msg, logprobs=None)],
+                usage=SimpleNamespace(prompt_tokens=5, completion_tokens=5),
+            )
+
+    db = tmp_path / "t.db"
+    rc = RecordingClient(EmptyContentMockClient(), "mock-judge", db_path=db)
+    rc.chat.completions.create(messages=[{"role": "user", "content": "p"}], model="m")
+    rows = json.loads(json.dumps(_read(db)))
+    assert len(rows) == 1
+    assert rows[0]["response"] == "judge推理回退"
+
+
+def test_run_exam_workers_clamped(tmp_path):
+    """workers <= 0 时 ThreadPoolExecutor 至少有 1 个 worker。"""
+    from lab.pairs import build_pair
+    pairs = [
+        build_pair(
+            axis="prose_craft",
+            a_text="……【甲】原版文本0……",
+            b_text="……【乙】退化文本0,命运的齿轮开始转动……",
+            label="a_win",
+            construction={
+                "kind": "corpus_degraded",
+                "op_id": "D05_inject_slop",
+                "severity": 1,
+                "source_script_id": "scr:" + "0" * 25,
+            },
+            split="exam",
+        )
+    ]
+    c = MockVerifierClient(a_wins=True)
+    report = run_exam({"client": c, "model": "m", "k": 1}, pairs, workers=0)
+    assert report["axes"]["prose_craft"]["n_pairs"] == 1
+    assert report["axes"]["prose_craft"]["sensitivity"] == pytest.approx(1.0)

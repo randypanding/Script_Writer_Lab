@@ -46,3 +46,38 @@ def test_system_prompt_prepended(tmp_path):
     c = MockClient()
     route("generation", "q", system="s1", db_path=db, client=c)
     assert c.calls[0]["messages"][0] == {"role": "system", "content": "s1"}
+
+def test_route_reasoning_content_fallback(tmp_path):
+    """content=None/empty 时回退 reasoning_content。"""
+    db = tmp_path / "t.db"
+
+    class EmptyContentClient:
+        model_name = "mock-model"
+
+        def __init__(self):
+            self.calls = []
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+        def _create(self, **kw):
+            self.calls.append(kw)
+            msg = SimpleNamespace(content=None)
+            msg.reasoning_content = "推理回退内容"
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=msg)],
+                usage=SimpleNamespace(prompt_tokens=11, completion_tokens=7),
+            )
+
+    c = EmptyContentClient()
+    out = route("generation", "问题", caller="test", db_path=db, client=c)
+    assert out == "推理回退内容"
+    rows = read_transcripts(db)
+    assert len(rows) == 1
+    assert rows[0]["response"] == "推理回退内容"
+
+
+def test_route_max_tokens_sent(tmp_path):
+    """route 默认带 max_tokens=4096。"""
+    db = tmp_path / "t.db"
+    c = MockClient("回复")
+    route("generation", "问题", db_path=db, client=c)
+    assert c.calls[0]["max_tokens"] == 4096
