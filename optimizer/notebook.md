@@ -249,3 +249,14 @@ decision: rejected
 sealed_score: null
 notes: "非实验轮,无接受权问题。遗留:R3 原机 1665 部 card/pairs 仍缺(T1 与判官考试 ≥100 对/轴的真卡点);治愈锚显性命名仅 1 部,大概率不达 ≥8 部验收线;hk-gateway 白名单路由广播丢失(git/gh 走 ghfast.top 代理可用);judge-cal 待 SW#23 合并后补跑。"
 ```
+```yaml
+round: "PM-2026-09-03"
+date: "2026-09-03"
+hypothesis: "PM 协调轮(非优化轮,不打分):p5 截断根治收尾+负载迁移 GPU 机+判官链路硬事实核查"
+surface: n/a
+change: "①p5 截断检测+重试 TDD 收尾(SW#24 commit 6356b9a,finish_reason+tokens_out 双信号);②bigmodel 实测 max_tokens 上限 65536(glm-5.3/flash 均不拒);③config 演进独立 PR(SW#26:tiers 全切 glm-5.3,tier_plan 64K/tier_draft 48K);④判官链路硬事实:bigmodel coding paas 不支持 logprobs(探针实证,k_sample_vote 降级路径已就位无需改码),1302 频率墙今日仍在(limit2/workers1 首调即 429),sealed stepfun 连通正常;⑤GPU 训练机工作区就绪(两仓 Developing,SW 离线 637/637 绿,git 走 github.com 直连),e2e 第五轮(#24+#26 合并 e2e-test 分支)在远端点火跑批;⑥负载策略:本机只留调度,重活全上 GPU 机"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "非实验轮。遗留:判官考试全量卡 bigmodel 1302(等限速窗口或独立 key);Q2 p6 解绑 A/B 依赖判官可用;R3 原机 card/pairs 仍缺;pairs 上 GPU 机前需 owner 批准(宪法§3 corpus 内容移出本机须问人类);e2e r5 结果待出。"
+```
