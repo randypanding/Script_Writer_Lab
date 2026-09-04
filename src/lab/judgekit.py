@@ -35,6 +35,42 @@ from lab.models import (
     _write_transcript,
 )
 
+# ---- llm_verifier patch for step-router-v1 ----
+# step-router-v1 (reasoning model) often returns analysis text without
+# <score_A>/<score_B> tags, or returns empty letters inside the tags when
+# _score_tags_by_prefill uses structured_outputs. Patch extract_score so it
+# falls back to the last standalone verdict letter A-T in the analysis text.
+import llm_verifier.fine_grained_reward as _fg
+
+_original_extract_score = _fg.extract_score
+
+
+def _patched_extract_score(text: str, tokens: list[str] | None, position_logprobs: list | None, tag: str) -> float:
+    result = _original_extract_score(text, tokens, position_logprobs, tag)
+    if result != 0.5:
+        return result
+    tag_name = tag.strip("<>")
+    idx = text.find(f"<{tag_name}>")
+    if idx == -1:
+        return 0.5
+    analysis = text[:idx]
+    # Strip any earlier score tags so letters inside them are not picked up.
+    analysis = re.sub(r"<score_[AB]>\s*</score_[AB]>", "", analysis)
+    matches = list(re.finditer(r"(?<![A-Za-z])([A-T])(?![A-Za-z])", analysis))
+    if not matches:
+        return 0.5
+    tok = matches[-1].group(1).lower()
+    raw_val = _fg.SCALE["valid_tokens"].get(tok)
+    if raw_val is None:
+        return 0.5
+    min_val = min(_fg.SCALE["valid_tokens"].values())
+    max_val = max(_fg.SCALE["valid_tokens"].values())
+    return (raw_val - min_val) / (max_val - min_val)
+
+
+_fg.extract_score = _patched_extract_score
+# ---- end patch ----
+
 CRITERIA_DIR = ROOT / "criteria"
 AXES = (
     "naturalness",

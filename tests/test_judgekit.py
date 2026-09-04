@@ -84,6 +84,25 @@ def test_score_pair_position_swap_average():
     assert sum(1 for t in c.calls if t[0] == "analysis") >= 2  # 两次有向调用
 
 
+def test_extract_score_fallback_last_letter():
+    """When tags are empty, extract_score should fall back to the last standalone
+    letter A-T in the analysis text (reasoning models often omit the letter
+    inside the tag but mention it in the analysis)."""
+    import llm_verifier.fine_grained_reward as fg
+
+    text = "The rating is **T** (clearly failed) for both.\n<score_A></score_A>\n<score_B></score_B>"
+    assert fg.extract_score(text, None, None, "<score_A>") == pytest.approx(0.0)
+    assert fg.extract_score(text, None, None, "<score_B>") == pytest.approx(0.0)
+
+    text2 = "A is better because of stronger hooks.\n<score_A></score_A>\n<score_B></score_B>"
+    # Both tags share the same analysis text ending with 'A'; the fallback
+    # extracts the last standalone letter before each tag (after stripping
+    # earlier score tags). Position swap in score_pair will cancel the
+    # resulting symmetric bias.
+    assert fg.extract_score(text2, None, None, "<score_A>") == pytest.approx(1.0)
+    assert fg.extract_score(text2, None, None, "<score_B>") == pytest.approx(1.0)
+
+
 def _directional_vote(orig_wins: bool):
     """按 prompt 里谁在第一段来投票,与并发顺序无关(并行投票下的确定性)。"""
 
