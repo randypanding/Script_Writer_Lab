@@ -86,6 +86,37 @@ def test_route_max_tokens_sent(tmp_path):
     assert c.calls[0]["max_tokens"] == 4096
 
 
+def test_route_censors_451_blocked(tmp_path):
+    """451 censorship 应抛 ContentBlockedError,不落 transcript。"""
+    import sqlite3
+
+    import httpx
+    import openai
+
+    from lab.models import ContentBlockedError, route
+
+    def _block(**kw):
+        req = httpx.Request("POST", "http://test/v1/chat/completions")
+        raise openai.APIStatusError(
+            "content blocked",
+            response=httpx.Response(451, request=req),
+            body=None,
+        )
+
+    class BlockClient:
+        model_name = "block-model"
+        chat = SimpleNamespace(completions=SimpleNamespace(create=_block))
+
+    db = tmp_path / "t.db"
+    with pytest.raises(ContentBlockedError, match="content blocked"):
+        route("generation", "问题", caller="test", db_path=db, client=BlockClient())
+    try:
+        rows = read_transcripts(db)
+    except sqlite3.OperationalError:
+        rows = []
+    assert len(rows) == 0
+
+
 import threading
 import time
 

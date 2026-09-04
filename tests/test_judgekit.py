@@ -523,3 +523,52 @@ def test_run_exam_resume(tmp_path):
     assert report["axes"]["prose_craft"]["sensitivity"] == pytest.approx(1.0)
     # 只有后两对被实际评估
     assert len([line for line in checkpoint.read_text(encoding="utf-8").splitlines() if line.strip()]) == 4
+
+
+def test_k_sample_vote_censorship_blocked(monkeypatch):
+    """_k_sample_vote 遇到 451 时不应崩,应返回中立 Verdict。"""
+    from lab import models
+
+    def _blocked_route(*args, **kwargs):
+        raise models.ContentBlockedError("451 content blocked")
+
+    monkeypatch.setattr(models, "route", _blocked_route, raising=True)
+    import lab.judgekit as jk
+
+    v = jk._k_sample_vote(
+        "a", "b", "prose_craft", {"model_slot": "judge_dev", "k": 1}, reason="direct block test"
+    )
+    assert v.engine == "k_sample_vote"
+    assert v.score_a == pytest.approx(0.5)
+    assert v.score_b == pytest.approx(0.5)
+    assert v.fallback_reason == "direct block test"
+
+
+def test_score_pair_451_falls_back_to_neutral(monkeypatch):
+    """score_pair 遇到 451 时通过 _k_sample_vote 返回中立 Verdict。"""
+    from lab import models
+
+    def _blocked_route(*args, **kwargs):
+        raise models.ContentBlockedError("451 content blocked")
+
+    monkeypatch.setattr(models, "route", _blocked_route, raising=True)
+
+    class ExplodingClient:
+        chat = SimpleNamespace(
+            completions=SimpleNamespace(
+                create=lambda **kw: (_ for _ in ()).throw(RuntimeError("logprobs not supported"))
+            )
+        )
+
+    import lab.judgekit as jk
+
+    v = jk.score_pair(
+        "原版片段",
+        "退化片段",
+        AXIS,
+        {"client": ExplodingClient(), "model": "m", "k": 3, "model_slot": "judge_dev"},
+    )
+    assert v.engine == "k_sample_vote"
+    assert "logprobs" in v.fallback_reason
+    assert v.score_a == pytest.approx(0.5)
+    assert v.score_b == pytest.approx(0.5)

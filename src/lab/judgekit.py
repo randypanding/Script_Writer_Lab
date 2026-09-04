@@ -26,7 +26,14 @@ from typing import Any
 import yaml
 from openai import APIError
 
-from lab.models import _CONCURRENCY_SEM, ROOT, _db_path, _resolve_client, _write_transcript
+from lab.models import (
+    _CONCURRENCY_SEM,
+    ROOT,
+    ContentBlockedError,
+    _db_path,
+    _resolve_client,
+    _write_transcript,
+)
 
 CRITERIA_DIR = ROOT / "criteria"
 AXES = (
@@ -203,13 +210,18 @@ def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any
     k = int(judge_cfg.get("k", 5))
     db = judge_cfg.get("db_path")
 
-    def _one_vote(first: str, second: str, first_is_a: bool) -> bool:
+    def _one_vote(first: str, second: str, first_is_a: bool):
         prompt = (
             f"比较两段短剧文本在轴「{axis}」上的质量。更好的是第一段(A)还是第二段(B)?"
             f"只回复一个大写字母 A 或 B,不要任何其他内容。"
             f"\n\n第一段:\n{first[:2000]}\n\n第二段:\n{second[:2000]}"
         )
-        ans = route(judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote", db_path=db, temperature=1.0)
+        try:
+            ans = route(
+                judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote", db_path=db, temperature=1.0
+            )
+        except ContentBlockedError:
+            return None
         from lab.swarm import parse_vote  # 剥 @提及 前缀后取首个 A/B(NPC 回复有前缀)
 
         return parse_vote(ans) == ("A" if first_is_a else "B")
@@ -217,16 +229,14 @@ def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any
     tasks = [(a_text, b_text, True), (b_text, a_text, False)] * k
     workers = min(len(tasks), int(judge_cfg.get("workers", 3)))
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        votes_a = sum(ex.map(lambda t: _one_vote(*t), tasks))
-    total = 2 * k
+        raw = list(ex.map(lambda t: _one_vote(*t), tasks))
+    votes_a = sum(1 for r in raw if r is True)
+    votes_b = sum(1 for r in raw if r is False)
+    valid = votes_a + votes_b
+    if valid == 0:
+        return Verdict(axis, 0.5, 0.5, k, "k_sample_vote", n_api_calls=0, fallback_reason=reason)
     return Verdict(
-        axis,
-        votes_a / total,
-        1 - votes_a / total,
-        k,
-        "k_sample_vote",
-        n_api_calls=total,
-        fallback_reason=reason,
+        axis, votes_a / valid, votes_b / valid, k, "k_sample_vote", n_api_calls=valid, fallback_reason=reason
     )
 
 

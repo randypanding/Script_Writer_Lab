@@ -21,7 +21,7 @@ LAB_TOML = ROOT / "lab.toml"
 # .env 是密钥的唯一存放点(gitignored)。模块导入即加载;
 # load_dotenv 默认不覆盖已存在的环境变量——显式 export 优先。
 from dotenv import load_dotenv
-from openai import RateLimitError
+from openai import APIStatusError, RateLimitError
 
 load_dotenv(ROOT / ".env")
 
@@ -72,6 +72,10 @@ def _resolve_client(slot: str) -> tuple[str, Any]:
     from openai import OpenAI
 
     return cfg["model"], OpenAI(api_key=key, base_url=base)
+
+
+class ContentBlockedError(RuntimeError):
+    """451 censorship: provider refused to generate."""
 
 
 def route(
@@ -130,6 +134,10 @@ def route(
             delay = min(1.0 * (2**attempt), 60.0)
             jitter = random.uniform(delay * 0.75, delay * 1.25)
             time.sleep(jitter)
+        except APIStatusError as exc:
+            if getattr(exc, "status_code", None) == 451:
+                raise ContentBlockedError(str(exc)[:200]) from exc
+            raise
     text = resp.choices[0].message.content or ""
     if not text:
         text = getattr(resp.choices[0].message, "reasoning_content", "") or ""
@@ -153,4 +161,4 @@ def read_transcripts(db_path: str | Path | None = None) -> list[dict[str, Any]]:
         con.close()
 
 
-__all__ = ["ROOT", "read_transcripts", "route"]
+__all__ = ["ROOT", "ContentBlockedError", "read_transcripts", "route"]
