@@ -86,6 +86,14 @@ def test_route_max_tokens_sent(tmp_path):
     assert c.calls[0]["max_tokens"] == 4096
 
 
+def test_route_max_tokens_override(tmp_path):
+    """max_tokens 参数可覆盖默认值。"""
+    db = tmp_path / "t.db"
+    c = MockClient("回复")
+    route("generation", "问题", db_path=db, client=c, max_tokens=8192)
+    assert c.calls[0]["max_tokens"] == 8192
+
+
 def test_route_censors_451_blocked(tmp_path):
     """451 censorship 应抛 ContentBlockedError,不落 transcript。"""
     import sqlite3

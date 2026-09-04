@@ -88,6 +88,7 @@ def route(
     temperature: float | None = None,
     db_path: str | Path | None = None,
     client: Any | None = None,
+    max_tokens: int | None = None,
 ) -> str:
     """一次 LLM 调用:路由槽位 + transcript 落库。client 参数供测试注入 mock。
 
@@ -118,7 +119,7 @@ def route(
     messages = ([{"role": "system", "content": system}] if system else []) + [
         {"role": "user", "content": prompt}
     ]
-    kwargs: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": 4096}
+    kwargs: dict[str, Any] = {"model": model, "messages": messages, "max_tokens": max_tokens or 4096}
     if temperature is not None:
         kwargs["temperature"] = temperature
     # 有界指数退避 + jitter 重试 RateLimitError(429);总并发由 _CONCURRENCY_SEM 钳制

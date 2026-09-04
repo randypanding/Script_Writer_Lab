@@ -142,6 +142,30 @@ def test_parse_vote():
     assert swarm.parse_vote("@cnb.dQQ3yYJOAGA(潘鼎) 答案是 A") == "A"
 
 
+def test_parse_vote_reasoning_model_last_line():
+    """step-router-v1 等 reasoning 模型常在末尾附最终字母,parse_vote 必须取最后独立 A/B。"""
+    # Advisor 包裹:最终 A 在末行
+    assert swarm.parse_vote(
+        "[Advisor consultation #1]\n[Advisor review]\n\nA\n[End of advisor consultation #1]\n\nA"
+    ) == "A"
+    # 中文长 reasoning 末尾附 \n\nB
+    assert swarm.parse_vote(
+        "分析了很多内容...\n[End of advisor consultation #1]\n\nB"
+    ) == "B"
+    # markdown 粗体 **B** 在分析段尾
+    assert swarm.parse_vote(
+        "**Recommendation**\nProceed with answering **B**.\n[End of advisor consultation #1]\n\nB"
+    ) == "B"
+    # 中文 reasoning 末尾“回答：B。”
+    assert swarm.parse_vote(
+        "B段更好，因为它补充了缺失的条目...回答：B。\n[End of advisor consultation #1]\n\nB"
+    ) == "B"
+    # 中文章节标签里出现 A/B 不应干扰:取最后真正独立的字母
+    assert swarm.parse_vote(
+        "第一段(A)和第二段(B)大部分相同...\n\n因此选 B。\n[End of advisor consultation #1]\n\nB"
+    ) == "B"
+
+
 def test_pack_and_parse_roundtrip():
     ins = swarm.pack_vote_instruction("prose_craft", "文笔", [("甲文", "乙文")] * 3)
     assert "第1组" in ins and "第3组" in ins and "1:A" in ins  # 含格式要求

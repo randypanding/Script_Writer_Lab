@@ -327,13 +327,22 @@ def run_batch(instructions: list[str], work_mode: bool = False, timeout_s: float
 _VOTE_RE = re.compile(r"[AB]")
 _MENTION_RE = re.compile(r"^(@\S+\s*)+")
 _PACKED_RE = re.compile(r"(\d{1,3})\s*[:：.、]?\s*([AB])")
+_VOTE_STANDALONE_RE = re.compile(r"(?<![A-Za-z])[AB](?![A-Za-z])")
 
 
 def parse_vote(reply: str) -> str:
-    """单个判定:剥 @提及 前缀后取第一个 A/B;取不到返回 ''。"""
+    """单个判定:剥 @提及 前缀后取最后一个独立 A/B;取不到返回 ''。"""
     body = _MENTION_RE.sub("", reply.strip())
-    m = _VOTE_RE.search(body.upper())
-    return m.group(0) if m else ""
+    # 优先取最后独立成行的 A/B（reasoning 模型常在末尾附最终字母，如 \n\nA 或 **B**）
+    for line in reversed(body.splitlines()):
+        line = line.strip()
+        if line in ("A", "B"):
+            return line
+        if len(line) == 3 and line.startswith("**") and line.endswith("**") and line[1] in "AB":
+            return line[1]
+    # 退化：取最后一个独立 A/B 字符（不被其他字母包围）
+    m = _VOTE_STANDALONE_RE.findall(body.upper())
+    return m[-1] if m else ""
 
 
 def pack_vote_instruction(axis: str, axis_hint: str, items: list[tuple[str, str]],

@@ -218,11 +218,11 @@ def _k_sample_vote(a_text: str, b_text: str, axis: str, judge_cfg: dict[str, Any
         )
         try:
             ans = route(
-                judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote", db_path=db, temperature=1.0
+                judge_cfg["model_slot"], prompt, caller="lab.judgekit.vote", db_path=db, temperature=1.0, max_tokens=8192
             )
         except ContentBlockedError:
             return None
-        from lab.swarm import parse_vote  # 剥 @提及 前缀后取首个 A/B(NPC 回复有前缀)
+        from lab.swarm import parse_vote  # reasoning 模型常在末尾附最终字母,parse_vote 取最后独立 A/B
 
         return parse_vote(ans) == ("A" if first_is_a else "B")
 
