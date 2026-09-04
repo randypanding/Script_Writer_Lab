@@ -238,3 +238,36 @@ decision: rejected
 sealed_score: null
 notes: "dry-run(mock LLM):管线活性验证通过;判官闸门 OFF,分数仅报告。"
 ```
+```yaml
+round: "PM-2026-09-01"
+date: "2026-09-01"
+hypothesis: "PM 进场协调轮(非优化轮,不打分):资源接线+demo_tea 加固+Q1/Q5 启动,为后续 M1/M2 轮次铺路"
+surface: n/a
+change: "①R1 key 接线:longcat 402 枯竭→glm-5.3-flash(GEN/DEV)+stepfun(SEALED),Lab/SW 模型槽位 failover 已合并(Lab#6/SW#22);②demo_tea 五死因机械兜底 5/5 闭环(SW#17-20 四 PR+STR-014 查实 round14 已闭环);③红队计划(Lab#4+SW#21,51 账房规则 17 用例);④slop_lexicon 品牌假阳性清洗(Lab#3,T3 前置);⑤Q1 rubric 第七轴+权重再平衡(SW#23,ADR-0020 proposed);⑥R5 语料:夸克免登链路打通,2286 文件 7.39GB 入 corpus/inbox,ingest 完成(1609 部,254 重复,367 跳过);⑦glm e2e:p0/p1 字段漂移(*_json→*_)修复(SW#24),全管线验证中"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "非实验轮,无接受权问题。遗留:R3 原机 1665 部 card/pairs 仍缺(T1 与判官考试 ≥100 对/轴的真卡点);治愈锚显性命名仅 1 部,大概率不达 ≥8 部验收线;hk-gateway 白名单路由广播丢失(git/gh 走 ghfast.top 代理可用);judge-cal 待 SW#23 合并后补跑。"
+```
+```yaml
+round: "PM-2026-09-03"
+date: "2026-09-03"
+hypothesis: "PM 协调轮(非优化轮,不打分):p5 截断根治收尾+负载迁移 GPU 机+判官链路硬事实核查"
+surface: n/a
+change: "①p5 截断检测+重试 TDD 收尾(SW#24 commit 6356b9a,finish_reason+tokens_out 双信号);②bigmodel 实测 max_tokens 上限 65536(glm-5.3/flash 均不拒);③config 演进独立 PR(SW#26:tiers 全切 glm-5.3,tier_plan 64K/tier_draft 48K);④判官链路硬事实:bigmodel coding paas 不支持 logprobs(探针实证,k_sample_vote 降级路径已就位无需改码),1302 频率墙今日仍在(limit2/workers1 首调即 429),sealed stepfun 连通正常;⑤GPU 训练机工作区就绪(两仓 Developing,SW 离线 637/637 绿,git 走 github.com 直连),e2e 第五轮(#24+#26 合并 e2e-test 分支)在远端点火跑批;⑥负载策略:本机只留调度,重活全上 GPU 机"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "非实验轮。遗留:判官考试全量卡 bigmodel 1302(等限速窗口或独立 key);Q2 p6 解绑 A/B 依赖判官可用;R3 原机 card/pairs 仍缺;pairs 上 GPU 机前需 owner 批准(宪法§3 corpus 内容移出本机须问人类);e2e r5 结果待出。"
+```
+```yaml
+round: "PM-2026-09-03b"
+date: "2026-09-03"
+hypothesis: "PM 协调轮(非优化轮):owner 授权 PM 直接合并——PR 全量清台+e2e r5/r6+判官考试换血启动"
+surface: n/a
+change: "①SW 合并 #17-#21/#23-#27 共 10 个 PR,另开 #28 ruff format+pyright 卫生轮(子代理纪律补丁:交付前必跑 ruff format --check/ruff check/pyright);②Lab 合并 #7/#8/#3/#4/#9/#10 共 6 个(#8 后本地 make ci 不再 OOM,147 passed+守卫过);③e2e r5 远端:p0→p6 全过(截断根治生效),after_p6 被 NOV-002 拦(fuzz.ratio 长度偏差),#27 段落长度机械预检修复后 r6 远端点火;④判官:judge_dev→step-router-v1(Lab#9),stepfun 兼容修复(Lab#10:reasoning_content 回退/WAL/workers 钳制),全量考试远端 workers=8 启动(5101 对/11 轴,ETA ~8h);⑤out/pairs 备份 COS(207MB 字节级核对)+rsync 到 GPU 机(owner 批准),本地腾 1.8GB"
+ab: {briefs: 0, seeds: [], winrate: null, ci95: [null, null], per_axis_floor: null}
+decision: rejected
+sealed_score: null
+notes: "非实验轮。风险记录:judge_dev/sealed 同落 stepfun 家族,跨家族独立性稀释,sealed 后续应换家族;judge-cal 无数据(SW cases.db 空,需 Lab 侧生成标定数据);R3 原机 card/pairs 仍缺;治愈锚显性仅 1 部。下一步:判官考试出分→Q1 A/B 能力→Q2 p6 解绑;e2e r6 结果→若全绿则 glm 管线达成首个完整里程碑。"
+```
